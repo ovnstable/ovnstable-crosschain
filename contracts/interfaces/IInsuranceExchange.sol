@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+interface Multicall2 {
+    function getBlockNumber() external view returns (uint256 blockNumber);
+}
+
 interface IInsuranceExchange {
 
     struct SwapData {

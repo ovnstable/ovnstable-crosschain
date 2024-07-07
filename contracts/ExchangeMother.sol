@@ -10,7 +10,6 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "./interfaces/IInsuranceExchange.sol";
 import "./interfaces/IPortfolioManager.sol";
-import "./interfaces/IBlockGetter.sol";
 import "./interfaces/IRemoteHub.sol";
 import "hardhat/console.sol";
 
@@ -462,12 +461,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         remoteHub.execMultiPayout{value: address(this).balance}(newDelta);
 
-        emit PayoutEvent(
-            profit,
-            excessProfit,
-            premium,
-            loss
-        );
+        emit PayoutEvent(profit, excessProfit, premium, loss);
 
         // Update next payout time. Cycle for preventing gaps
         // Allow execute payout every day in one time (10:00)
@@ -495,7 +489,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      */
     function _requireOncePerBlock(bool isBalanced) internal {
 
-        uint256 blockNumber = IBlockGetter(blockGetter).getNumber();
+        // https://developer.arbitrum.io/time#case-study-multicall
+        uint256 blockNumber = Multicall2(0x842eC2c7D803033Edf55E478F461FC547Bc54EB2).getBlockNumber();
 
         // Flag isBalanced take about:
         // PortfolioManager run balance function and unstake liquidity from non cash strategies
