@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0 <0.9.0;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -9,38 +9,21 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@overnight-contracts/common/contracts/libraries/WadRayMath.sol";
 import "./interfaces/IRemoteHub.sol";
 
+// Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
-contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     using WadRayMath for uint256;
-
-    bytes32 public constant PORTFOLIO_AGENT_ROLE = keccak256("PORTFOLIO_AGENT_ROLE");
-
-    event RemoteHubUpdated(address remoteHub);
 
     address private DELETED_0;
     uint8 private _decimals;
     IRemoteHub public remoteHub;
     bool public paused;
 
-    modifier whenNotPaused() {
-        require(paused == false, "pause");
-        _;
-    }
+    // ---  events
 
-    modifier onlyPortfolioAgent() {
-        require(remoteHub.roleManager().hasRole(PORTFOLIO_AGENT_ROLE, msg.sender), "Restricted to Portfolio Agent");
-        _;
-    }
+    event RemoteHubUpdated(address remoteHub);
 
-    modifier onlyCCIP() {
-        require(remoteHub.ccipPool() == _msgSender(), "Caller is not the CCIP pool");
-        _;
-    }
-
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Restricted to admins");
-        _;
-    }
+    // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -61,34 +44,54 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
 
     function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
 
+    // ---  remoteHub getters
+
+    function roleManager() internal view returns(IRoleManager) {
+        return remoteHub.roleManager();
+    }
+
+    function usdx() internal view returns(IUsdxToken) {
+        return remoteHub.usdx();
+    }
+
+    // ---  modifiers
+
+    modifier whenNotPaused() {
+        require(paused == false, "pause");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+        _;
+    }
+
+    modifier onlyPortfolioAgent() {
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        _;
+    }
+
+    modifier onlyCCIP() {
+        require(remoteHub.ccipPool() == _msgSender(), "Caller is not the CCIP pool");
+        _;
+    }
+
+    // --- setters
+
+    function setRemoteHub(address _remoteHub) external onlyAdmin {
+        require(_remoteHub != address(0), "Zero address not allowed");
+        remoteHub = IRemoteHub(_remoteHub);
+        emit RemoteHubUpdated(_remoteHub);
+    }
+
+    // ---  logic
+
     function pause() public onlyPortfolioAgent {
         paused = true;
     }
 
     function unpause() public onlyPortfolioAgent {
         paused = false;
-    }
-
-    function _convertToSharesUp(uint256 assets) internal view returns (uint256) {
-        return assets.rayDiv(rate());
-    }
-
-    function _convertToSharesDown(uint256 assets) internal view returns (uint256) {
-        return assets.rayDivDown(rate());
-    }
-
-    function _convertToAssetsUp(uint256 shares) internal view returns (uint256) {
-        return shares.rayMul(rate());
-    }
-
-    function _convertToAssetsDown(uint256 shares) internal view returns (uint256) {
-        return shares.rayMulDown(rate());
-    }
-
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
-        require(_remoteHub != address(0), "Zero address not allowed");
-        remoteHub = IRemoteHub(_remoteHub);
-        emit RemoteHubUpdated(_remoteHub);
     }
 
     /// @inheritdoc ERC20Upgradeable
@@ -126,7 +129,7 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
         require(assets != 0, "Zero assets not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
-        remoteHub.usdp().transferFrom(msg.sender, address(this), assets);
+        usdx().transferFrom(msg.sender, address(this), assets);
 
         uint256 shares = _convertToSharesDown(assets);
 
@@ -149,23 +152,18 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
         return _convertToAssetsUp(shares);
     }
 
-    function mint2(address account, uint256 amount) external whenNotPaused onlyAdmin {
+    // for CCIP
+    function mint(address account, uint256 amount) external whenNotPaused onlyCCIP {
         uint256 assets = _convertToAssetsUp(amount);
-        remoteHub.usdp().mint(address(this), assets);
+        usdx().mint(address(this), assets);
         _mint(account, amount);
     }
 
     // for CCIP
-    function mint(address account, uint256 amount) external whenNotPaused onlyCCIP {
-        uint256 assets = _convertToAssetsUp(amount);
-        remoteHub.usdp().mint(address(this), assets);
-        _mint(account, amount);
-    }
-
     function burn(uint256 amount) external whenNotPaused onlyCCIP {
         _burn(msg.sender, amount);
         uint256 assets = _convertToAssetsUp(amount);
-        remoteHub.usdp().burn(address(this), assets);
+        usdx().burn(address(this), assets);
     }
 
     /// @inheritdoc IERC4626
@@ -176,7 +174,7 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
         uint256 assets = _convertToAssetsUp(shares);
 
         if (assets != 0) {
-            remoteHub.usdp().transferFrom(msg.sender, address(this), assets);
+            usdx().transferFrom(msg.sender, address(this), assets);
         }
 
         _mint(receiver, shares);
@@ -214,7 +212,7 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
             _burn(owner, shares);
         }
 
-        remoteHub.usdp().transfer(receiver, assets);
+        usdx().transfer(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
@@ -248,7 +246,7 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
         uint256 assets = _convertToAssetsDown(shares);
 
         if (assets != 0) {
-            remoteHub.usdp().transfer(receiver, assets);
+            usdx().transfer(receiver, assets);
         }
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -257,7 +255,31 @@ contract WrappedUsdPlusToken is IERC4626, ERC20Upgradeable, AccessControlUpgrade
     }
 
     function rate() public view returns (uint256) {
-        return 10 ** 54 / remoteHub.usdp().rebasingCreditsPerTokenHighres();
+        return 10 ** 54 / usdx().rebasingCreditsPerTokenHighres();
+    }
+
+    function _convertToSharesUp(uint256 assets) internal view returns (uint256) {
+        return assets.rayDiv(rate());
+    }
+
+    function _convertToSharesDown(uint256 assets) internal view returns (uint256) {
+        return assets.rayDivDown(rate());
+    }
+
+    function _convertToAssetsUp(uint256 shares) internal view returns (uint256) {
+        return shares.rayMul(rate());
+    }
+
+    function _convertToAssetsDown(uint256 shares) internal view returns (uint256) {
+        return shares.rayMulDown(rate());
+    }
+
+    // --- testing
+
+    function mint2(address account, uint256 amount) external whenNotPaused onlyAdmin {
+        uint256 assets = _convertToAssetsUp(amount);
+        usdx().mint(address(this), assets);
+        _mint(account, amount);
     }
 
 }

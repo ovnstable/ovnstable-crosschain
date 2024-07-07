@@ -3,7 +3,7 @@ pragma solidity >=0.5.0 <0.9.0;
 
 import "./IPayoutManager.sol";
 
-interface IUsdPlusToken {
+interface IUsdxToken {
 
     function liquidityIndex() external view returns (uint256);
 

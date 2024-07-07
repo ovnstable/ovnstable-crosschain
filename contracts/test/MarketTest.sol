@@ -6,10 +6,10 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-import "./interfaces/IRemoteHub.sol";
+import "../interfaces/IRemoteHub.sol";
 import "hardhat/console.sol";
 
-contract Market is IMarket, Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpgradeable {
 
     IERC20 public usdcToken;
     IRemoteHub public remoteHub;
@@ -215,7 +215,7 @@ contract Market is IMarket, Initializable, AccessControlUpgradeable, UUPSUpgrade
     // --- testing
 
     function checkUpgrading() public pure returns(bool) {
-        return false;
+        return true;
     }
 
 }

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.0 <0.9.0;
 
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
@@ -18,17 +17,36 @@ import "hardhat/console.sol";
 contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
-    bytes32 public constant PORTFOLIO_AGENT_ROLE = keccak256("PORTFOLIO_AGENT_ROLE");
     address public constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    // Custom errors to provide more descriptive revert messages.
-    error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
-    error NothingToWithdraw(); // Used when trying to withdraw Ether but there's nothing to withdraw.
-    error FailedToWithdrawEth(address owner, address target, uint256 value); // Used when the withdrawal of Ether fails.
-    error DestinationChainNotAllowlisted(uint64 destinationChainSelector); // Used when the destination chain has not been allowlisted by the contract owner.
-    error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
-    error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
-    error InvalidReceiverAddress(); // Used when the receiver address is 0.
+    struct MultichainCallItem {
+        uint64 chainSelector;
+        address receiver;
+        address token;
+        uint256 amount;
+        DataCallItem[] batchData;
+    }
+
+    struct DataCallItem {
+        address executor;
+        bytes data;
+    }
+
+    // Mapping to keep track of allowlisted destination chains.
+    mapping(uint64 => bool) public allowlistedDestinationChains;
+
+    // Mapping to keep track of allowlisted source chains.
+    mapping(uint64 => bool) public allowlistedSourceChains;
+
+    // Mapping to keep track of allowlisted senders.
+    mapping(address => bool) public allowlistedSenders;
+
+    ChainItem[] public chainItems;
+    mapping(uint64 => ChainItem) public chainItemById;
+    mapping(uint64 => mapping(address => bool)) public allowlistedDestinationAddresses;
+    uint64 public chainSelector;
+
+    // ---  events
 
     // Event emitted when a message is sent to another chain.
     event MessageSent(
@@ -58,150 +76,23 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         bytes data
     );
 
-    struct MultichainCallItem {
-        uint64 chainSelector;
-        address receiver;
-        address token;
-        uint256 amount;
-        DataCallItem[] batchData;
-    }
+    // ---  errors
 
-    struct DataCallItem {
-        address executor;
-        bytes data;
-    }
+    error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
+    error NothingToWithdraw(); // Used when trying to withdraw Ether but there's nothing to withdraw.
+    error FailedToWithdrawEth(address owner, address target, uint256 value); // Used when the withdrawal of Ether fails.
+    error DestinationChainNotAllowlisted(uint64 destinationChainSelector); // Used when the destination chain has not been allowlisted by the contract owner.
+    error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
+    error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
+    error InvalidReceiverAddress(); // Used when the receiver address is 0.
+    error ExecutorIsTheSameContract();
 
-    // Mapping to keep track of allowlisted destination chains.
-    mapping(uint64 => bool) public allowlistedDestinationChains;
-
-    // Mapping to keep track of allowlisted source chains.
-    mapping(uint64 => bool) public allowlistedSourceChains;
-
-    // Mapping to keep track of allowlisted senders.
-    mapping(address => bool) public allowlistedSenders;
-
-    ChainItem[] public chainItems;
-    mapping(uint64 => ChainItem) public chainItemById;
-    mapping(uint64 => mapping(address => bool)) public allowlistedDestinationAddresses;
-    uint64 public chainSelector;
-
-    function addChainItem(ChainItem memory chainItem) public onlyAdmin {
-        chainItems.push(chainItem);
-        // chainItemById[chainItem.chainSelector].ccipPool = chainItem.ccipPool;
-        // chainItemById[chainItem.chainSelector].chainSelector = chainItem.chainSelector;
-        // chainItemById[chainItem.chainSelector].exchange = chainItem.exchange;
-        // chainItemById[chainItem.chainSelector].market = chainItem.market;
-        // chainItemById[chainItem.chainSelector].payoutManager = chainItem.payoutManager;
-        // chainItemById[chainItem.chainSelector].remoteHub = chainItem.remoteHub;
-        // chainItemById[chainItem.chainSelector].remoteHubUpgrader = chainItem.remoteHubUpgrader;
-        // chainItemById[chainItem.chainSelector].roleManager = chainItem.roleManager;
-        // chainItemById[chainItem.chainSelector].usdp = chainItem.usdp;
-        // chainItemById[chainItem.chainSelector].wusdp = chainItem.wusdp;
-        chainItemById[chainItem.chainSelector] = chainItem;
-        
-        console.log("qwert", chainItem.usdp);
-        console.log(" chsel", chainSelector);
-        console.log(" chsel2", chainItem.chainSelector);
-        console.log("qwert2", chainItemById[chainSelector].usdp);
-        console.log("vazno", i_ccipRouter);
-    }
-
-    function getChainItemById(uint64 key) public view returns(ChainItem memory) {
-        return chainItemById[key];
-    }
-
-    function ccipPool() external view returns(address) {
-        return chainItemById[chainSelector].ccipPool;
-    }
-
-    function usdp() external view returns(IUsdPlusToken) {
-        console.log("usdp", chainSelector);
-        console.log("usdp2", chainItemById[chainSelector].usdp);
-        return IUsdPlusToken(chainItemById[chainSelector].usdp);
-    }
-
-    function exchange() external view returns(IExchange) {
-        return IExchange(chainItemById[chainSelector].exchange);
-    }
-
-    function payoutManager() external view returns(IPayoutManager) {
-        return IPayoutManager(chainItemById[chainSelector].payoutManager);
-    }
-
-    function roleManager() external view returns(IRoleManager) {
-        return IRoleManager(chainItemById[chainSelector].roleManager);
-    }
-
-    function remoteHub() external view returns(IRemoteHub) {
-        return IRemoteHub(chainItemById[chainSelector].remoteHub);
-    }
-
-    function remoteHubUpgrader() external view returns(IRemoteHubUpgrader) {
-        return IRemoteHubUpgrader(chainItemById[chainSelector].remoteHubUpgrader);
-    }
-
-    function wusdp() external view returns(IWrappedUsdPlusToken) {
-        return IWrappedUsdPlusToken(chainItemById[chainSelector].wusdp);
-    }
-
-    function market() external view returns(IMarket) {
-        return IMarket(chainItemById[chainSelector].market);
-    }
-
-
-    /// @dev Modifier that checks if the chain with the given destinationChainSelector is allowlisted.
-    /// @param _destinationChainSelector The selector of the destination chain.
-    modifier onlyAllowlistedDestinationChain(uint64 _destinationChainSelector) {
-        if (!allowlistedDestinationChains[_destinationChainSelector])
-            revert DestinationChainNotAllowlisted(_destinationChainSelector);
-        _;
-    }
-
-    /// @dev Modifier that checks if the chain with the given sourceChainSelector is allowlisted and if the sender is allowlisted.
-    /// @param _sourceChainSelector The selector of the destination chain.
-    /// @param _sender The address of the sender.
-    modifier onlyAllowlisted(uint64 _sourceChainSelector, address _sender) {
-        console.log("opa");
-        if (!allowlistedSourceChains[_sourceChainSelector])
-            revert SourceChainNotAllowlisted(_sourceChainSelector);
-        if (!allowlistedSenders[_sender]) revert SenderNotAllowlisted(_sender);
-        _;
-    }
-
-    /// @dev Modifier that checks the receiver address is not 0.
-    /// @param _receiver The receiver address.
-    modifier validateReceiver(address _receiver) {
-        if (_receiver == address(0)) revert InvalidReceiverAddress();
-        _;
-    }
-
-    modifier onlyAdmin() {
-        console.log("kek", msg.sender);
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        _;
-    }
-
-    modifier onlyPortfolioAgent() {
-        require(IRoleManager(chainItemById[chainSelector].roleManager).hasRole(PORTFOLIO_AGENT_ROLE, _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
-        _;
-    }
-
-    modifier onlyExchanger() {
-        require(chainItemById[chainSelector].exchange == _msgSender(), "Caller is not the EXCHANGER");
-        _;
-    }
+    // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _router) CCIPReceiver(_router) {
-        // console.log("constr", _chainSelector);
-        // chainSelector = _chainSelector;
-        // console.log("constr2", chainSelector);
-    }
+    constructor(address _router) CCIPReceiver(_router) {}
 
     function initialize(uint64 _chainSelector) initializer public {
-
-        // bytes memory lol = abi.encodeWithSignature("setTokens(address)", 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1);
-        // console.log("mda", lol);
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
@@ -217,12 +108,105 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
 
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
+    // ---  remoteHub getters
+
+    function ccipPool() public view returns(address) {
+        return chainItemById[chainSelector].ccipPool;
+    }
+
+    function usdx() public view returns(IUsdxToken) {
+        return IUsdxToken(chainItemById[chainSelector].usdx);
+    }
+
+    function exchange() public view returns(IExchange) {
+        return IExchange(chainItemById[chainSelector].exchange);
+    }
+
+    function payoutManager() public view returns(IPayoutManager) {
+        return IPayoutManager(chainItemById[chainSelector].payoutManager);
+    }
+
+    function roleManager() public view returns(IRoleManager) {
+        return IRoleManager(chainItemById[chainSelector].roleManager);
+    }
+
+    function remoteHub() public view returns(IRemoteHub) {
+        return IRemoteHub(chainItemById[chainSelector].remoteHub);
+    }
+
+    function remoteHubUpgrader() public view returns(IRemoteHubUpgrader) {
+        return IRemoteHubUpgrader(chainItemById[chainSelector].remoteHubUpgrader);
+    }
+
+    function wusdx() public view returns(IWrappedUsdxToken) {
+        return IWrappedUsdxToken(chainItemById[chainSelector].wusdx);
+    }
+
+    function market() public view returns(IMarket) {
+        return IMarket(chainItemById[chainSelector].market);
+    }
+
+    // ---  modifiers
+
+    /// @dev Modifier that checks if the chain with the given destinationChainSelector is allowlisted.
+    /// @param _destinationChainSelector The selector of the destination chain.
+    modifier onlyAllowlistedDestinationChain(uint64 _destinationChainSelector) {
+        if (!allowlistedDestinationChains[_destinationChainSelector])
+            revert DestinationChainNotAllowlisted(_destinationChainSelector);
+        _;
+    }
+
+    /// @dev Modifier that checks if the chain with the given sourceChainSelector is allowlisted and if the sender is allowlisted.
+    /// @param _sourceChainSelector The selector of the destination chain.
+    /// @param _sender The address of the sender.
+    modifier onlyAllowlisted(uint64 _sourceChainSelector, address _sender) {
+        if (!allowlistedSourceChains[_sourceChainSelector])
+            revert SourceChainNotAllowlisted(_sourceChainSelector);
+        if (!allowlistedSenders[_sender]) revert SenderNotAllowlisted(_sender);
+        _;
+    }
+
+    /// @dev Modifier that checks the receiver address is not 0.
+    /// @param _receiver The receiver address.
+    modifier validateReceiver(address _receiver) {
+        if (_receiver == address(0)) revert InvalidReceiverAddress();
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+        _;
+    }
+
+    modifier onlyPortfolioAgent() {
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        _;
+    }
+
+    modifier onlyExchanger() {
+        require(address(exchange()) == _msgSender(), "Caller is not the EXCHANGER");
+        _;
+    }
+
+    // --- setters
+
+    // ---  logic
+
     function pause() public onlyPortfolioAgent {
         _pause();
     }
 
     function unpause() public onlyPortfolioAgent {
         _unpause();
+    }
+
+    function addChainItem(ChainItem memory chainItem) public onlyAdmin {
+        chainItems.push(chainItem);
+        chainItemById[chainItem.chainSelector] = chainItem;
+    }
+
+    function getChainItemById(uint64 key) public view returns(ChainItem memory) {
+        return chainItemById[key];
     }
 
     /// @dev Updates the allowlist status of a destination chain for transactions.
@@ -245,13 +229,8 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         validateReceiver(item.receiver)
         returns (bytes32 messageId)
     {
-        // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(item);
-
-        // Initialize a router client instance to interact with cross-chain router
         IRouterClient router = IRouterClient(this.getRouter());
-
-        // Get the fee required to send the CCIP message
         uint256 fees = router.getFee(item.chainSelector, evm2AnyMessage);
 
         if (fees > address(this).balance)
@@ -261,57 +240,36 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             IERC20(item.token).approve(address(router), item.amount);
         }
 
-        // Send the CCIP message through the router and store the returned CCIP message ID
         messageId = router.ccipSend{value: fees}(item.chainSelector, evm2AnyMessage);
 
-        // Emit an event with message details
-        emit MessageSent(
-            messageId,
-            item.chainSelector,
-            item.receiver,
-            abi.encode(item.batchData),
-            item.token,
-            item.amount,
-            address(0),
-            fees
-        );
+        emit MessageSent(messageId, item.chainSelector, item.receiver, abi.encode(item.batchData), item.token, item.amount, address(0), fees);
 
         return messageId;
     }
 
-    // /// handle a received message
-    function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage)
-        internal
-        override
-        onlyAllowlisted(
-            any2EvmMessage.sourceChainSelector,
-            abi.decode(any2EvmMessage.sender, (address))
-        ) // Make sure source chain and sender are allowlisted
+    /// handle a received message
+    function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage) internal override
+        onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address))) 
     {
-        console.log("tuta");
-        DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[])); // abi-decoding of the sent text
-        console.log("ex", receivedData[0].executor);
-        console.logBytes(receivedData[0].data);
+        DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[]));
         for (uint i = 0; i < receivedData.length; i++) {
             if (receivedData[i].executor == address(this)) {
-
+                revert ExecutorIsTheSameContract();
             } else {
                 (bool success, bytes memory data) = receivedData[i].executor.call(receivedData[i].data);
-                emit CallExecuted(receivedData[i].executor, success, data);
                 require(success, "Call failed");
+                emit CallExecuted(receivedData[i].executor, success, data);
             }
         }
 
         emit MessageReceived(
             any2EvmMessage.messageId,
-            any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
-            abi.decode(any2EvmMessage.sender, (address)), // abi-decoding of the sender address,
+            any2EvmMessage.sourceChainSelector,
+            abi.decode(any2EvmMessage.sender, (address)),
             abi.decode(any2EvmMessage.data, (DataCallItem[])),
             any2EvmMessage.destTokenAmounts.length == 0 ? ZERO_ADDRESS : any2EvmMessage.destTokenAmounts[0].token,
             any2EvmMessage.destTokenAmounts.length == 0 ? 0 : any2EvmMessage.destTokenAmounts[0].amount
         );
-
-        console.log("end3");
     }
 
     function _buildCCIPMessage(MultichainCallItem memory item) private pure returns (Client.EVM2AnyMessage memory) {
@@ -336,56 +294,44 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             });
     }
 
-    /// @notice Fallback function to allow the contract to receive Ether.
-    /// @dev This function has no function body, making it a default function for receiving Ether.
-    /// It is automatically called when Ether is sent to the contract without any data.
     receive() external payable {}
 
-    /// @notice Allows the contract owner to withdraw the entire balance of Ether from the contract.
-    /// @dev This function reverts if there are no funds to withdraw or if the transfer fails.
-    /// It should only be callable by the owner of the contract.
-    /// @param _beneficiary The address to which the Ether should be sent.
     function withdraw(address _beneficiary) public onlyAdmin {
-        // Retrieve the balance of this contract
         uint256 amount = address(this).balance;
 
-        // Revert if there is nothing to withdraw
-        if (amount == 0) revert NothingToWithdraw();
+        if (amount == 0) {
+            revert NothingToWithdraw();
+        }
 
-        // Attempt to send the funds, capturing the success status and discarding any return data
         (bool sent, ) = _beneficiary.call{value: amount}("");
 
-        // Revert if the send failed, with information about the attempted transfer
-        if (!sent) revert FailedToWithdrawEth(msg.sender, _beneficiary, amount);
+        if (!sent) {
+            revert FailedToWithdrawEth(msg.sender, _beneficiary, amount);
+        }
     }
 
     /// @notice Allows the owner of the contract to withdraw all tokens of a specific ERC20 token.
     /// @dev This function reverts with a 'NothingToWithdraw' error if there are no tokens to withdraw.
     /// @param _beneficiary The address to which the tokens will be sent.
     /// @param _token The contract address of the ERC20 token to be withdrawn.
-    function withdrawToken(
-        address _beneficiary,
-        address _token
-    ) public onlyAdmin {
-        // Retrieve the balance of this contract
+    function withdrawToken(address _beneficiary, address _token) public onlyAdmin {
+        
         uint256 amount = IERC20(_token).balanceOf(address(this));
 
-        // Revert if there is nothing to withdraw
-        if (amount == 0) revert NothingToWithdraw();
+        if (amount == 0) {
+            revert NothingToWithdraw();
+        }
 
         IERC20(_token).safeTransfer(_beneficiary, amount);
     }
 
     function multichainCall(MultichainCallItem[] memory multichainCallItems) public payable whenNotPaused onlyAdmin {
-
         for (uint256 i; i < multichainCallItems.length; i++) {
             if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver != address(this)) {
-                revert("unmuch");
             } else if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver == address(this)) {
                 for (uint j = 0; j < multichainCallItems[i].batchData.length; j++) {
                     (bool success, bytes memory data) = multichainCallItems[i].batchData[j].executor.call(multichainCallItems[i].batchData[j].data);
                     emit CallExecuted(address(this), success, data);
-                    require(success, "Call failed");
                 }
             } else {
                 _sendViaCCIP(multichainCallItems[i]);
@@ -394,8 +340,6 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
-
-        console.log("execMultiPayout");
         for (uint256 i = 1; i < chainItems.length; i++) {
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
@@ -415,29 +359,33 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
 
     function multiTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
 
-        IUsdPlusToken usdp = IUsdPlusToken(chainItemById[chainSelector].usdp);
-        IERC20 wusdp = IERC20(chainItemById[chainSelector].wusdp);
-        usdp.transferFrom(msg.sender, address(this), _amount);
-        IMarket(chainItemById[chainSelector].market).wrap(address(usdp),usdp.balanceOf(address(this)), address(this)); 
+        usdx().transferFrom(msg.sender, address(this), _amount);
+        IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 
 
         DataCallItem[] memory dataCallItems = new DataCallItem[](2);
         dataCallItems[0] = DataCallItem({
-            executor: chainItemById[_destinationChainSelector].wusdp,
-            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wusdp.balanceOf(address(this)))
+            executor: chainItemById[_destinationChainSelector].wusdx,
+            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wusdx().balanceOf(address(this)))
         });
         dataCallItems[1] = DataCallItem({
             executor: chainItemById[_destinationChainSelector].market,
-            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].usdp, wusdp.balanceOf(address(this)), _to)
+            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].usdx, wusdx().balanceOf(address(this)), _to)
         });
 
         MultichainCallItem memory multichainCallItem = MultichainCallItem({
                 chainSelector: _destinationChainSelector,
                 receiver: chainItemById[_destinationChainSelector].remoteHub,
-                token: chainItemById[chainSelector].wusdp,
-                amount: wusdp.balanceOf(address(this)),
+                token: chainItemById[chainSelector].wusdx,
+                amount: wusdx().balanceOf(address(this)),
                 batchData: dataCallItems
             });
 
         _sendViaCCIP(multichainCallItem);
+    }
+
+    // --- testing
+
+    function checkUpgrading() public pure returns(bool) {
+        return false;
     }
 }

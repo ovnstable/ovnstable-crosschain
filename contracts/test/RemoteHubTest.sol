@@ -11,18 +11,20 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IRemoteHub.sol";
+import "../interfaces/IRemoteHub.sol";
 import "hardhat/console.sol";
 
-contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+contract RemoteHubTest is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     address public constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    struct MultichainCallUpgradeItem {
+    struct MultichainCallItem {
         uint64 chainSelector;
         address receiver;
-        address newImplementation;
+        address token;
+        uint256 amount;
+        DataCallItem[] batchData;
     }
 
     struct DataCallItem {
@@ -39,9 +41,10 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     // Mapping to keep track of allowlisted senders.
     mapping(address => bool) public allowlistedSenders;
 
+    ChainItem[] public chainItems;
+    mapping(uint64 => ChainItem) public chainItemById;
     mapping(uint64 => mapping(address => bool)) public allowlistedDestinationAddresses;
-    
-    IRemoteHub public remoteHub;
+    uint64 public chainSelector;
 
     // ---  events
 
@@ -50,17 +53,19 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         bytes32 indexed messageId, // The unique ID of the CCIP message.
         uint64 indexed destinationChainSelector, // The chain selector of the destination chain.
         address receiver, // The address of the receiver on the destination chain.
-        address newImplementation,
+        bytes data, // The text being sent.
+        address token, // The token address that was transferred.
+        uint256 tokenAmount, // The token amount that was transferred.
         address feeToken, // the token address used to pay CCIP fees.
         uint256 fees // The fees paid for sending the message.
     );
 
     // Event emitted when a message is received from another chain.
-    event UpgradeMessageReceived(
+    event MessageReceived(
         bytes32 indexed messageId, // The unique ID of the CCIP message.
         uint64 indexed sourceChainSelector, // The chain selector of the source chain.
         address sender, // The address of the sender from the source chain.
-        address data, // The text that was received.
+        DataCallItem[] data, // The text that was received.
         address token, // The token address that was transferred.
         uint256 tokenAmount // The token amount that was transferred.
     );
@@ -80,20 +85,19 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
     error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
     error InvalidReceiverAddress(); // Used when the receiver address is 0.
-    event RemoteHubUpdated(address remoteHub);
+    error ExecutorIsTheSameContract();
 
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _router, address _remoteHub) CCIPReceiver(_router) {
-        remoteHub = IRemoteHub(_remoteHub);
-    }
+    constructor(address _router) CCIPReceiver(_router) {}
 
-    function initialize() initializer public {
+    function initialize(uint64 _chainSelector) initializer public {
         __AccessControl_init();
+        __Pausable_init();
         __UUPSUpgradeable_init();
-
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        chainSelector = _chainSelector;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -106,12 +110,40 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
 
     // ---  remoteHub getters
 
+    function ccipPool() public view returns(address) {
+        return chainItemById[chainSelector].ccipPool;
+    }
+
+    function usdx() public view returns(IUsdxToken) {
+        return IUsdxToken(chainItemById[chainSelector].usdx);
+    }
+
     function exchange() public view returns(IExchange) {
-        return remoteHub.exchange();
+        return IExchange(chainItemById[chainSelector].exchange);
+    }
+
+    function payoutManager() public view returns(IPayoutManager) {
+        return IPayoutManager(chainItemById[chainSelector].payoutManager);
     }
 
     function roleManager() public view returns(IRoleManager) {
-        return remoteHub.roleManager();
+        return IRoleManager(chainItemById[chainSelector].roleManager);
+    }
+
+    function remoteHub() public view returns(IRemoteHub) {
+        return IRemoteHub(chainItemById[chainSelector].remoteHub);
+    }
+
+    function remoteHubUpgrader() public view returns(IRemoteHubUpgrader) {
+        return IRemoteHubUpgrader(chainItemById[chainSelector].remoteHubUpgrader);
+    }
+
+    function wusdx() public view returns(IWrappedUsdxToken) {
+        return IWrappedUsdxToken(chainItemById[chainSelector].wusdx);
+    }
+
+    function market() public view returns(IMarket) {
+        return IMarket(chainItemById[chainSelector].market);
     }
 
     // ---  modifiers
@@ -158,12 +190,24 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
 
     // --- setters
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
-        remoteHub = IRemoteHub(_remoteHub);
-        emit RemoteHubUpdated(_remoteHub);
+    // ---  logic
+
+    function pause() public onlyPortfolioAgent {
+        _pause();
     }
 
-    // ---  logic
+    function unpause() public onlyPortfolioAgent {
+        _unpause();
+    }
+
+    function addChainItem(ChainItem memory chainItem) public onlyAdmin {
+        chainItems.push(chainItem);
+        chainItemById[chainItem.chainSelector] = chainItem;
+    }
+
+    function getChainItemById(uint64 key) public view returns(ChainItem memory) {
+        return chainItemById[key];
+    }
 
     /// @dev Updates the allowlist status of a destination chain for transactions.
     function allowlistDestinationChain(uint64 _destinationChainSelector, bool allowed) external onlyAdmin {
@@ -180,72 +224,168 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         allowlistedSenders[_sender] = allowed;
     }
 
-    function _sendViaCCIP(MultichainCallUpgradeItem memory item) internal
+    function _sendViaCCIP(MultichainCallItem memory item) internal
         onlyAllowlistedDestinationChain(item.chainSelector)
         validateReceiver(item.receiver)
         returns (bytes32 messageId)
-    {   
+    {
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(item);
         IRouterClient router = IRouterClient(this.getRouter());
         uint256 fees = router.getFee(item.chainSelector, evm2AnyMessage);
-        
+
         if (fees > address(this).balance)
             revert NotEnoughBalance(address(this).balance, fees);
 
+        if (item.amount > 0) {
+            IERC20(item.token).approve(address(router), item.amount);
+        }
+
         messageId = router.ccipSend{value: fees}(item.chainSelector, evm2AnyMessage);
-        
-        emit MessageSent(messageId, item.chainSelector, item.receiver, item.newImplementation, address(0), fees);
+
+        emit MessageSent(messageId, item.chainSelector, item.receiver, abi.encode(item.batchData), item.token, item.amount, address(0), fees);
 
         return messageId;
     }
 
     /// handle a received message
     function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage) internal override
-        onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address)))
+        onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address))) 
     {
-        address newImplementation = abi.decode(any2EvmMessage.data, (address));
-        (bool success, ) = address(remoteHub).call(abi.encodeWithSignature("upgradeTo(address)", newImplementation));
-        require(success, "Call failed");    
+        DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[]));
+        for (uint i = 0; i < receivedData.length; i++) {
+            if (receivedData[i].executor == address(this)) {
+                revert ExecutorIsTheSameContract();
+            } else {
+                (bool success, bytes memory data) = receivedData[i].executor.call(receivedData[i].data);
+                require(success, "Call failed");
+                emit CallExecuted(receivedData[i].executor, success, data);
+            }
+        }
 
-        emit UpgradeMessageReceived(
+        emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector,
             abi.decode(any2EvmMessage.sender, (address)),
-            abi.decode(any2EvmMessage.data, (address)),
+            abi.decode(any2EvmMessage.data, (DataCallItem[])),
             any2EvmMessage.destTokenAmounts.length == 0 ? ZERO_ADDRESS : any2EvmMessage.destTokenAmounts[0].token,
             any2EvmMessage.destTokenAmounts.length == 0 ? 0 : any2EvmMessage.destTokenAmounts[0].amount
         );
     }
 
-    function _buildCCIPMessage(MultichainCallUpgradeItem memory item) private pure returns (Client.EVM2AnyMessage memory) {
-        
+    function _buildCCIPMessage(MultichainCallItem memory item) private pure returns (Client.EVM2AnyMessage memory) {
+
+        Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
+        tokenAmounts[0] = Client.EVMTokenAmount({
+            token: item.token,
+            amount: item.amount
+        });
+
+        DataCallItem[] memory dataCallItem;
+
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encode(item.receiver),
-                data: abi.encode(item.newImplementation),
-                tokenAmounts: new Client.EVMTokenAmount[](0),
-                extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 200_000})),
+                data: (item.amount == 0) ? abi.encode(item.batchData) : abi.encode(dataCallItem),
+                tokenAmounts: (item.amount == 0) ? new Client.EVMTokenAmount[](0) : tokenAmounts,
+                extraArgs: Client._argsToBytes(
+                    Client.EVMExtraArgsV1({gasLimit: 200_000})
+                ),
                 feeToken: address(0)
             });
     }
 
     receive() external payable {}
 
-    function upgradeRemoteHub(uint64 _chainSelector, address newImplementation) public payable onlyAdmin {
-        require(_chainSelector != remoteHub.chainSelector(), "Forbiden upgrade: use direct call");
+    function withdraw(address _beneficiary) public onlyAdmin {
+        uint256 amount = address(this).balance;
+
+        if (amount == 0) {
+            revert NothingToWithdraw();
+        }
+
+        (bool sent, ) = _beneficiary.call{value: amount}("");
+
+        if (!sent) {
+            revert FailedToWithdrawEth(msg.sender, _beneficiary, amount);
+        }
+    }
+
+    /// @notice Allows the owner of the contract to withdraw all tokens of a specific ERC20 token.
+    /// @dev This function reverts with a 'NothingToWithdraw' error if there are no tokens to withdraw.
+    /// @param _beneficiary The address to which the tokens will be sent.
+    /// @param _token The contract address of the ERC20 token to be withdrawn.
+    function withdrawToken(address _beneficiary, address _token) public onlyAdmin {
         
-        MultichainCallUpgradeItem memory multichainCallItem = MultichainCallUpgradeItem({
-            chainSelector: _chainSelector,
-            receiver: remoteHub.getChainItemById(_chainSelector).remoteHubUpgrader,
-            newImplementation: newImplementation
+        uint256 amount = IERC20(_token).balanceOf(address(this));
+
+        if (amount == 0) {
+            revert NothingToWithdraw();
+        }
+
+        IERC20(_token).safeTransfer(_beneficiary, amount);
+    }
+
+    function multichainCall(MultichainCallItem[] memory multichainCallItems) public payable whenNotPaused onlyAdmin {
+        for (uint256 i; i < multichainCallItems.length; i++) {
+            if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver != address(this)) {
+            } else if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver == address(this)) {
+                for (uint j = 0; j < multichainCallItems[i].batchData.length; j++) {
+                    (bool success, bytes memory data) = multichainCallItems[i].batchData[j].executor.call(multichainCallItems[i].batchData[j].data);
+                    emit CallExecuted(address(this), success, data);
+                }
+            } else {
+                _sendViaCCIP(multichainCallItems[i]);
+            }
+        }
+    }
+
+    function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
+        for (uint256 i = 1; i < chainItems.length; i++) {
+            DataCallItem[] memory dataCallItems = new DataCallItem[](1);
+            dataCallItems[0] = DataCallItem({
+                executor: chainItems[i].exchange,
+                data: abi.encodeWithSignature("payout(uint256)", newDelta)
+            });
+            MultichainCallItem memory multichainCallItem = MultichainCallItem({
+                chainSelector: chainItems[i].chainSelector,
+                receiver: chainItems[i].remoteHub,
+                token: ZERO_ADDRESS,
+                amount: 0,
+                batchData: dataCallItems
+            });
+            _sendViaCCIP(multichainCallItem);
+        }
+    }
+
+    function multiTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
+
+        usdx().transferFrom(msg.sender, address(this), _amount);
+        IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 
+
+        DataCallItem[] memory dataCallItems = new DataCallItem[](2);
+        dataCallItems[0] = DataCallItem({
+            executor: chainItemById[_destinationChainSelector].wusdx,
+            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wusdx().balanceOf(address(this)))
         });
-    
+        dataCallItems[1] = DataCallItem({
+            executor: chainItemById[_destinationChainSelector].market,
+            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].usdx, wusdx().balanceOf(address(this)), _to)
+        });
+
+        MultichainCallItem memory multichainCallItem = MultichainCallItem({
+                chainSelector: _destinationChainSelector,
+                receiver: chainItemById[_destinationChainSelector].remoteHub,
+                token: chainItemById[chainSelector].wusdx,
+                amount: wusdx().balanceOf(address(this)),
+                batchData: dataCallItems
+            });
+
         _sendViaCCIP(multichainCallItem);
     }
 
     // --- testing
 
     function checkUpgrading() public pure returns(bool) {
-        return false;
+        return true;
     }
 }

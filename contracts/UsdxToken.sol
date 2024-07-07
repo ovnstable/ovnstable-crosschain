@@ -12,35 +12,30 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import { StableMath } from "./libraries/StableMath.sol";
-
 import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 import "./interfaces/IRoleManager.sol";
 import "./interfaces/IRemoteHub.sol";
 import "./libraries/WadRayMath.sol";
 import "hardhat/console.sol";
 
-/**
- * @dev Fork of OUSD version
- * In previous version it was UsdPlusTokenOld.sol therefore save slot storage for deleted variables
- *
- * Different with OUSD:
- * - changeSupply
- * - PayoutManager: rebaseOptIn/rebaseOptOut
- * - RoleManager
- */
+// Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
+// Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
-contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeMath for uint256;
     using StableMath for uint256;
 
-    bytes32 public constant PORTFOLIO_AGENT_ROLE = keccak256("PORTFOLIO_AGENT_ROLE");
-
     uint256 private constant MAX_SUPPLY = type(uint256).max;
     uint256 private constant RESOLUTION_INCREASE = 1e9;
     uint256 private constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
+
+    enum RebaseOptions {
+        OptIn,
+        OptOut
+    }
 
     mapping(address => uint256) private _creditBalances;
 
@@ -70,16 +65,11 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
     mapping(address => uint256) public nonRebasingCreditsPerToken;
     mapping(address => RebaseOptions) public rebaseState;
     EnumerableSet.AddressSet _nonRebaseOwners;
-    uint256 private _status; // ReentrancyGuard
+    uint256 private _reentrancyGuardStatus;
     bool public paused;
     IRemoteHub public remoteHub;
 
-    modifier nonReentrant() {
-        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
-        _status = _ENTERED;
-        _;
-        _status = _NOT_ENTERED;
-    }
+    // ---  events
 
     event RemoteHubUpdated(address remoteHub);
 
@@ -89,10 +79,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
         uint256 rebasingCreditsPerToken
     );
 
-    enum RebaseOptions {
-        OptIn,
-        OptOut
-    }
+    // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -116,10 +103,27 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
 
     function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
-        require(_remoteHub != address(0), "Zero address not allowed");
-        remoteHub = IRemoteHub(_remoteHub);
-        emit RemoteHubUpdated(_remoteHub);
+    // ---  remoteHub getters
+
+    function roleManager() internal view returns(IRoleManager) {
+        return remoteHub.roleManager();
+    }
+
+    function exchange() internal view returns(IExchange) {
+        return remoteHub.exchange();
+    }
+
+    function wUsdx() internal view returns(IWrappedUsdxToken) {
+        return remoteHub.wusdx();
+    }
+
+    // ---  modifiers
+
+    modifier nonReentrant() {
+        require(_reentrancyGuardStatus != _ENTERED, "ReentrancyGuard: reentrant call");
+        _reentrancyGuardStatus = _ENTERED;
+        _;
+        _reentrancyGuardStatus = _NOT_ENTERED;
     }
 
     modifier whenNotPaused() {
@@ -127,13 +131,23 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
         _;
     }
 
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+        _;
+    }
+
+    modifier onlyPortfolioAgent() {
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        _;
+    }
+
     modifier onlyExchanger() {
-        require(address(remoteHub.exchange()) == _msgSender(), "Caller is not the EXCHANGER");
+        require(address(exchange()) == _msgSender(), "Caller is not the EXCHANGER");
         _;
     }
 
     modifier onlyExchangerOrWrapper() {
-        require(address(remoteHub.exchange()) == _msgSender() || address(remoteHub.wusdp()) == _msgSender(), "Caller is not the EXCHANGER or WRAPPER");
+        require(address(exchange()) == _msgSender() || address(remoteHub.wusdx()) == _msgSender(), "Caller is not the EXCHANGER or WRAPPER");
         _;
     }
 
@@ -142,15 +156,15 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
         _;
     }
 
-    modifier onlyPortfolioAgent() {
-        require(remoteHub.roleManager().hasRole(PORTFOLIO_AGENT_ROLE, _msgSender()), "Restricted to Portfolio Agent");
-        _;
+    // --- setters
+
+    function setRemoteHub(address _remoteHub) external onlyAdmin {
+        require(_remoteHub != address(0), "Zero address not allowed");
+        remoteHub = IRemoteHub(_remoteHub);
+        emit RemoteHubUpdated(_remoteHub);
     }
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Restricted to admins");
-        _;
-    }
+    // ---  logic
 
     function pause() public onlyPortfolioAgent {
         paused = true;
@@ -160,33 +174,14 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
         paused = false;
     }
 
-    /**
-     * @notice Returns the name of the token.
-     */
     function name() public view returns (string memory) {
         return _name;
     }
 
-    /**
-     * @notice Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
     function symbol() public view returns (string memory) {
         return _symbol;
     }
 
-    /**
-     * @notice Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5,05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei.
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
     function decimals() public virtual view returns (uint8) {
         return _decimals;
     }
@@ -220,7 +215,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
     }
 
     /**
-     * @return The total supply of USD+.
+     * @return The total supply of USDx.
      */
     function totalSupply() public view override returns (uint256) {
         return _totalSupply;
@@ -260,12 +255,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @return A uint256 representing the amount of base units owned by the
      *         specified address.
      */
-    function balanceOf(address _account)
-        public
-        view
-        override
-        returns (uint256)
-    {
+    function balanceOf(address _account) public view override returns (uint256) {
         return _creditBalances[_account] != 0 ? creditToAsset(_account, _creditBalances[_account]) : 0;
     }
 
@@ -276,11 +266,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @return (uint256, uint256) Credit balance and credits per token of the
      *         address
      */
-    function creditsBalanceOf(address _account)
-        public
-        view
-        returns (uint256, uint256)
-    {
+    function creditsBalanceOf(address _account) public view returns (uint256, uint256) {
         uint256 cpt = _creditsPerToken(_account);
         if (cpt == 1e27) {
             // For a period before the resolution upgrade, we created all new
@@ -288,10 +274,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
             // as a result of this upgrade, we will return their true values
             return (_creditBalances[_account], cpt);
         } else {
-            return (
-                _creditBalances[_account] / RESOLUTION_INCREASE,
-                cpt / RESOLUTION_INCREASE
-            );
+            return (_creditBalances[_account] / RESOLUTION_INCREASE, cpt / RESOLUTION_INCREASE);
         }
     }
 
@@ -310,17 +293,9 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _value the amount to be transferred.
      * @return true on success.
      */
-    function transfer(address _to, uint256 _value)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function transfer(address _to, uint256 _value) public override whenNotPaused returns (bool) {
         require(_to != address(0), "Transfer to zero address");
-        require(
-            _value <= balanceOf(msg.sender),
-            "Transfer greater than balance"
-        );
+        require(_value <= balanceOf(msg.sender), "Transfer greater than balance");
 
         _executeTransfer(msg.sender, _to, _value);
 
@@ -330,9 +305,9 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
     }
 
     /**
-     * @dev Converts usd+ balance value to credits
+     * @dev Converts USDx balance value to credits
      * @param owner The address which owns the funds.
-     * @param amount The amount for conversion in usd+
+     * @param amount The amount for conversion in USDx
      * @return credit The number of tokens in credits
      */
     function assetToCredit(address owner, uint256 amount) public view returns(uint256 credit) {
@@ -346,7 +321,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
     }
 
     /**
-     * @dev Converts credits balance value to usd+
+     * @dev Converts credits balance value to USDx
      * @param owner The address which owns the funds.
      * @param credit The amount for conversion in credits
      * @return asset The number of tokens in credits
@@ -387,11 +362,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _to The address you want to transfer to.
      * @param _value The amount of tokens to be transferred.
      */
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _value
-    ) public override whenNotPaused returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _value) public override whenNotPaused returns (bool) {
         require(_to != address(0), "Transfer to zero address");
         require(_value <= balanceOf(_from), "Transfer greater than balance");
 
@@ -410,13 +381,9 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @dev Update the count of non rebasing credits in response to a transfer
      * @param _from The address you want to send tokens from.
      * @param _to The address you want to transfer to.
-     * @param _value Amount of USD+ to transfer
+     * @param _value Amount of USDx to transfer
      */
-    function _executeTransfer(
-        address _from,
-        address _to,
-        uint256 _value
-    ) internal {
+    function _executeTransfer(address _from, address _to, uint256 _value) internal {
 
         _beforeTokenTransfer(_from, _to, _value);
 
@@ -455,12 +422,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _spender The address which will spend the funds.
      * @return The number of tokens still available for the _spender.
      */
-    function allowance(address _owner, address _spender)
-        public
-        view
-        override
-        returns (uint256)
-    {
+    function allowance(address _owner, address _spender) public view override returns (uint256) {
         uint256 currentAllowance = _allowances[_owner][_spender];
 
         return creditToAsset(_owner, currentAllowance);
@@ -479,12 +441,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _spender The address which will spend the funds.
      * @param _value The amount of tokens to be spent.
      */
-    function approve(address _spender, uint256 _value)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function approve(address _spender, uint256 _value) public override whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _value);
         _allowances[msg.sender][_spender] = scaledAmount;
         emit Approval(msg.sender, _spender, scaledAmount);
@@ -499,11 +456,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _spender The address which will spend the funds.
      * @param _addedValue The amount of tokens to increase the allowance by.
      */
-    function increaseAllowance(address _spender, uint256 _addedValue)
-        public
-        whenNotPaused
-        returns (bool)
-    {
+    function increaseAllowance(address _spender, uint256 _addedValue) public whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _addedValue);
         _allowances[msg.sender][_spender] = _allowances[msg.sender][_spender]
             .add(scaledAmount);
@@ -518,9 +471,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      * @param _subtractedValue The amount of tokens to decrease the allowance
      *        by.
      */
-    function decreaseAllowance(address _spender, uint256 _subtractedValue)
-        public
-        whenNotPaused
+    function decreaseAllowance(address _spender, uint256 _subtractedValue) public whenNotPaused
         returns (bool)
     {
         uint256 scaledAmount = assetToCredit(msg.sender, _subtractedValue);
@@ -623,11 +574,7 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
      *      if the account is non-rebasing.
      * @param _account Address of the account.
      */
-    function _creditsPerToken(address _account)
-        internal
-        view
-        returns (uint256)
-    {
+    function _creditsPerToken(address _account) internal view returns (uint256) {
         if (nonRebasingCreditsPerToken[_account] != 0) {
             return nonRebasingCreditsPerToken[_account];
         } else {
@@ -692,16 +639,10 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
 
     /**
      * @dev Modify the supply without minting new tokens. This uses a change in
-     *      the exchange rate between "credits" and USD+ tokens to change balances.
-     * @param _newTotalSupply New total supply of USD+.
+     *      the exchange rate between "credits" and USDx tokens to change balances.
+     * @param _newTotalSupply New total supply of USDx.
      */
-    function changeSupply(uint256 _newTotalSupply)
-        external
-        onlyExchanger
-        nonReentrant
-        whenNotPaused
-        returns (NonRebaseInfo [] memory, uint256)
-    {
+    function changeSupply(uint256 _newTotalSupply) external onlyExchanger nonReentrant whenNotPaused returns (NonRebaseInfo [] memory, uint256) {
         console.log("changeSupply", _totalSupply);
         require(_totalSupply > 0, "Cannot increase 0 supply");
         require(_newTotalSupply >= _totalSupply, 'negative rebase');
@@ -753,19 +694,9 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
         return (nonRebaseInfo, deltaNR);
     }
 
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal {}
 
-    }
-
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function _afterTokenTransfer(address from, address to, uint256 amount) internal {
 
         if (from == to) {
             return;
@@ -791,6 +722,4 @@ contract UsdPlusToken is Initializable, ContextUpgradeable, IERC20Upgradeable, I
             }
         }
     }
-
-
 }

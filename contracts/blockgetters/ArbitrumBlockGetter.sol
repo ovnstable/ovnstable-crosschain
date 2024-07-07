@@ -4,6 +4,10 @@ pragma solidity >=0.8.0 <0.9.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IBlockGetter.sol";
 
+interface Multicall2 {
+    function getBlockNumber() external view returns (uint256 blockNumber);
+}
+
 contract ArbitrumBlockGetter is IBlockGetter {
 
     // https://developer.arbitrum.io/time#case-study-multicall
@@ -12,11 +16,4 @@ contract ArbitrumBlockGetter is IBlockGetter {
     function getNumber() external override view returns (uint256){
         return multiCall.getBlockNumber();
     }
-
-
-}
-
-interface Multicall2 {
-
-    function getBlockNumber() external view returns (uint256 blockNumber);
 }

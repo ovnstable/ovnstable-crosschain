@@ -11,10 +11,10 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IRemoteHub.sol";
+import "../interfaces/IRemoteHub.sol";
 import "hardhat/console.sol";
 
-contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+contract RemoteHubUpgraderTest is CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     address public constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
@@ -246,6 +246,6 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     // --- testing
 
     function checkUpgrading() public pure returns(bool) {
-        return false;
+        return true;
     }
 }
