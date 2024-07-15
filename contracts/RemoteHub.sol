@@ -230,17 +230,17 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         returns (bytes32 messageId)
     {
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(item);
-        IRouterClient router = IRouterClient(this.getRouter());
+        IRouterClient router = IRouterClient(this.getRouter()); // Q: may be it should be initialized at creation stage
         uint256 fees = router.getFee(item.chainSelector, evm2AnyMessage);
 
         if (fees > address(this).balance)
             revert NotEnoughBalance(address(this).balance, fees);
 
         if (item.amount > 0) {
-            IERC20(item.token).approve(address(router), item.amount);
+            IERC20(item.token).approve(address(router), item.amount); // Q: item.token == 0x0? 
         }
 
-        messageId = router.ccipSend{value: fees}(item.chainSelector, evm2AnyMessage);
+        messageId = router.ccipSend{value: fees}(item.chainSelector, evm2AnyMessage); // which transfer mechanism is used?
 
         emit MessageSent(messageId, item.chainSelector, item.receiver, abi.encode(item.batchData), item.token, item.amount, address(0), fees);
 
@@ -253,7 +253,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     {
         DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[]));
         for (uint i = 0; i < receivedData.length; i++) {
-            if (receivedData[i].executor == address(this)) {
+            if (receivedData[i].executor == address(this)) { // Q: for which reasons?
                 revert ExecutorIsTheSameContract();
             } else {
                 (bool success, bytes memory data) = receivedData[i].executor.call(receivedData[i].data);
@@ -262,7 +262,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             }
         }
 
-        emit MessageReceived(
+        emit MessageReceived( // Q: actually, message can be received, but tx can be reverted in execution block 
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector,
             abi.decode(any2EvmMessage.sender, (address)),
@@ -357,7 +357,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
-    function multiTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
+    function multiTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public { // Q: naming?
 
         usdx().transferFrom(msg.sender, address(this), _amount);
         IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 

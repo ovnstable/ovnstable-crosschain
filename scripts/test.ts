@@ -42,7 +42,7 @@ type Contracts = {
 const chain = [
     {
         NAME: "ARBITRUM",
-        RPC_URL: "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=AsCWb9aYukugqNphr9pEGw4qx3BBnloR7qCh0oup5x2S",
+        RPC_URL: "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=AsCWb9aYukugqNphr9pEGw4qx3BBnloR7qCh0oup5x2S", // Q: no .env..)
         BLOCK_NUMBER: 226076577,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: 4949039107694359620n

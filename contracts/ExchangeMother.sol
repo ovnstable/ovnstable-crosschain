@@ -18,7 +18,7 @@ import "hardhat/console.sol";
 contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
 
     uint256 public constant LIQ_DELTA_DM   = 1e6;
-    uint256 public constant FISK_FACTOR_DM = 1e5;
+    uint256 public constant RISK_FACTOR_DM = 1e5;
 
     uint256 private constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
@@ -113,7 +113,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         redeemFeeDenominator = 100000;
 
         // 1637193600 = 2021-11-18T00:00:00Z
-        nextPayoutTime = 1637193600;
+        nextPayoutTime = 1637193600; // Q: change? it can be modified, but just to be clear
         payoutPeriod = 24 * 60 * 60;
         payoutTimeRange = 24 * 60 * 60; // 24 hours
         abroadMax = 1000350;
@@ -332,14 +332,14 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * The root method of protocol USDx
      * Calculates delta total NAV - total supply USDx and accrues profit or loss among all token holders
      *
-     * What do method?
+     * What this method does?
      * - Claim rewards from all strategy
      * - Increase liquidity index USDx on amount of profit
      * - Decrease liquidity index USDx on amount of loss
      *
      * Support Insurance mode: Only if insurance is set
-     * What the Insurance to do?
-     * If USDx has Loss then Exchange coverts the loss through Insurance
+     * What are Insurance's main actions?
+     * If USDx has loss then Exchange covers the loss through Insurance
      * if USDx has profit then Exchange send premium amount to Insurance
      *
      * Explain params:
@@ -382,16 +382,16 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             loss = totalUsdx - totalNav;
             uint256 oracleLossAmount = totalUsdx * oracleLoss / oracleLossDenominator;
 
-            if(loss <= oracleLossAmount) {
+            if (loss <= oracleLossAmount) {
                 revert('OracleLoss');
-            }else {
+            } else {
                 loss += totalUsdx * compensateLoss / compensateLossDenominator;
                 loss = _rebaseToAsset(loss);
                 if (simulate) {
                     return -int256(loss);
                 }
                 if (swapData.amountIn != 0) {
-                    IInsuranceExchange(insurance).compensate(swapData, loss, address(portfolioManager));
+                    IInsuranceExchange(insurance).compensate(swapData, loss, address(portfolioManager)); // Q: why are all of our Insurance money in OVN?
                     portfolioManager.deposit();
                 }
             }
@@ -401,15 +401,15 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             // Positive rebase
             // USDx have profit and we need to execute next steps:
             // 1. Pay premium to Insurance
-            // 2. If profit more max delta then transfer excess profit to OVN wallet
+            // 2. If profit is more than max delta then transfer excess profit to OVN wallet
 
-            premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / FISK_FACTOR_DM);
+            premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / RISK_FACTOR_DM);
 
             if (simulate) {
                 return int256(premium);
             }
 
-            if(premium > 0 && swapData.amountIn != 0) {
+            if (premium > 0 && swapData.amountIn != 0) {
                 portfolioManager.withdraw(premium);
                 SafeERC20.safeTransfer(usdc, insurance, premium);
 
@@ -456,7 +456,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             payoutManager().payoutDone(address(usdx()), nonRebaseInfo);
         }
 
-        require(usdx().totalSupply() == totalNav,'total != nav');
+        require(usdx().totalSupply() == totalNav, 'total != nav');
         require(usdx().totalSupply() == expectedTotalUsdx, 'total != expected');
 
         remoteHub.execMultiPayout{value: address(this).balance}(newDelta);
@@ -523,8 +523,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function _rebaseToAsset(uint256 _amount) internal view returns (uint256){
 
-        uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
-        uint256 usdxDecimals = usdx().decimals();
+        uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals(); // Q: may be better to hardcode these values => less calls
+        uint256 usdxDecimals = usdx().decimals(); // same
         if (assetDecimals > usdxDecimals) {
             _amount = _amount * (10 ** (assetDecimals - usdxDecimals));
         } else {

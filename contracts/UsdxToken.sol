@@ -24,7 +24,7 @@ import "hardhat/console.sol";
 contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
 
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeMath for uint256;
+    using SafeMath for uint256; // Q: deprecated
     using StableMath for uint256;
 
     uint256 private constant MAX_SUPPLY = type(uint256).max;
@@ -673,11 +673,11 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         require(_rebasingCreditsPerToken > 0, "Invalid change in supply");
 
         _totalSupply = _rebasingCredits
-            .divPrecisely(_rebasingCreditsPerToken)
+            .divPrecisely(_rebasingCreditsPerToken) // Q: divPrecisely is really deprecated
             .add(nonRebasingSupply);
 
         NonRebaseInfo [] memory nonRebaseInfo = new NonRebaseInfo[](_nonRebaseOwners.length());
-        for (uint256 i = 0; i < nonRebaseInfo.length; i++) {
+        for (uint256 i = 0; i < nonRebaseInfo.length; i++) { // Q: awful loop, may be reconsider to do something like this: https://github.com/montyp0x/staking_rewards/blob/1b6b4c076950b122bd1456c0cd3cab6f21bf7a9a/contracts/StakingRewards.sol#L103 , if possible
             address userAddress = _nonRebaseOwners.at(i);
             uint256 userBalance = balanceOf(userAddress);
             uint256 userPart = (nonRebasingSupply != 0) ? userBalance * deltaNR / nonRebasingSupply : 0;
