@@ -290,7 +290,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV1({gasLimit: 200_000})
                 ),
-                feeToken: address(0)
+                feeToken: address(0) // Q: fees in native?
             });
     }
 
@@ -340,7 +340,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
-        for (uint256 i = 1; i < chainItems.length; i++) {
+        for (uint256 i = 1; i < chainItems.length; i++) { // Q: i = 1?
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
                 executor: chainItems[i].exchange,
