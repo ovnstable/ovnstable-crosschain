@@ -9,6 +9,8 @@ const fs = require('fs');
 import { keccak256 } from 'ethereumjs-util';
 import { bufferToHex } from 'ethereumjs-util';
 const { expect } = require("chai");
+const  dotenv  = require('dotenv');
+dotenv.config({ path: __dirname + '/../.env' });
 
 // 1st Terminal: npx hardhat node2 --src arbitrum --dest optimism
 // 2nd Terminal: npx hardhat run ./scripts/test.ts --network localhost
@@ -42,14 +44,14 @@ type Contracts = {
 const chain = [
     {
         NAME: "ARBITRUM",
-        RPC_URL: "https://lb.drpc.org/ogrpc?network=arbitrum&dkey=AsCWb9aYukugqNphr9pEGw4qx3BBnloR7qCh0oup5x2S",
+        RPC_URL: process.env.ARBITRUM_RPC,
         BLOCK_NUMBER: 226076577,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: 4949039107694359620n
     },
     {
         NAME: "OPTIMISM",
-        RPC_URL: "https://lb.drpc.org/ogrpc?network=optimism&dkey=AsCWb9aYukugqNphr9pEGw4qx3BBnloR7qCh0oup5x2S",
+        RPC_URL: process.env.OPTIMISM_RPC,
         BLOCK_NUMBER: 121937222,
         ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
         chainSelector: 3734403246176062136n
@@ -277,6 +279,7 @@ async function initDeploySet(chainType: ChainType, opposite?: Contracts): Promis
     if (chainType == ChainType.SOURCE) {
         await remoteHub.allowlistDestinationChain(chain[ChainType.DESTINATION].chainSelector, true);
         await remoteHubUpgrader.allowlistDestinationChain(chain[ChainType.DESTINATION].chainSelector, true);
+        await exchange.renaming();
     } else {
         await remoteHub.allowlistSourceChain(chain[ChainType.SOURCE].chainSelector, true);
         await remoteHubUpgrader.allowlistSourceChain(chain[ChainType.SOURCE].chainSelector, true);

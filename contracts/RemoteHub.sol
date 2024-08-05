@@ -45,6 +45,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     mapping(uint64 => ChainItem) public chainItemById;
     mapping(uint64 => mapping(address => bool)) public allowlistedDestinationAddresses;
     uint64 public chainSelector;
+    uint256 public ccipGasLimit;
 
     // ---  events
 
@@ -98,6 +99,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         chainSelector = _chainSelector;
+        ccipGasLimit = 200_000;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -201,8 +203,35 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     function addChainItem(ChainItem memory chainItem) public onlyAdmin {
-        chainItems.push(chainItem);
-        chainItemById[chainItem.chainSelector] = chainItem;
+        bool isNew = true;
+        for (uint256 i = 0; i < chainItems.length; i++) {
+            ChainItem memory item = chainItems[i];
+
+            if (item.chainSelector == chainItem.chainSelector) {
+                chainItems[i] = chainItem;
+                isNew = false;
+            }
+        }
+
+        if (isNew) {
+            chainItems.push(chainItem);
+            chainItemById[chainItem.chainSelector] = chainItem;
+        }
+    }
+
+    function removeChainItem(uint64 _chainSelector) public onlyAdmin {
+        uint256 index = type(uint256).max;
+        for (uint256 i = 0; i < chainItems.length; i++) {
+            if (chainItems[i].chainSelector == _chainSelector) {
+                index = i;
+            }
+        }
+
+        if (index != type(uint256).max) {
+            ChainItem memory tempItem = chainItems[chainItems.length - 1];
+            chainItems[index] = tempItem;
+            chainItems.pop();
+        }
     }
 
     function getChainItemById(uint64 key) public view returns(ChainItem memory) {
@@ -222,6 +251,11 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     /// @dev Updates the allowlist status of a sender for transactions.
     function allowlistSender(address _sender, bool allowed) external onlyAdmin {
         allowlistedSenders[_sender] = allowed;
+    }
+
+    /// @dev Set new gasLimit for CCIP send
+    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyAdmin {
+        ccipGasLimit = _ccipGasLimit;
     }
 
     function _sendViaCCIP(MultichainCallItem memory item) internal
@@ -272,7 +306,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         );
     }
 
-    function _buildCCIPMessage(MultichainCallItem memory item) private pure returns (Client.EVM2AnyMessage memory) {
+    function _buildCCIPMessage(MultichainCallItem memory item) private view returns (Client.EVM2AnyMessage memory) {
 
         Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
         tokenAmounts[0] = Client.EVMTokenAmount({
@@ -288,7 +322,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
                 data: (item.amount == 0) ? abi.encode(item.batchData) : abi.encode(dataCallItem),
                 tokenAmounts: (item.amount == 0) ? new Client.EVMTokenAmount[](0) : tokenAmounts,
                 extraArgs: Client._argsToBytes(
-                    Client.EVMExtraArgsV1({gasLimit: 200_000})
+                    Client.EVMExtraArgsV1({gasLimit: ccipGasLimit})
                 ),
                 feeToken: address(0)
             });
@@ -340,6 +374,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
+        require(chainItems[0].chainSelector == chainSelector, "first chainItems element should be motherchain");
         for (uint256 i = 1; i < chainItems.length; i++) {
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
@@ -357,7 +392,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
-    function multiTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
+    function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
 
         usdx().transferFrom(msg.sender, address(this), _amount);
         IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 

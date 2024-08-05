@@ -251,7 +251,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
 
                 if (item.operation == Operation.SKIM) {
                     _skim(info, item);
-                } else if (item.operation == Operation.BRIBE){
+                } else if (item.operation == Operation.BRIBE) {
                     _bribe(info, item);
                 } else {
                     _custom(info, item);
@@ -316,5 +316,4 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         revert("Custom not implemented");
     }
 
-    uint256[49] private __gap;
 }

@@ -10,8 +10,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import { StableMath } from "./libraries/StableMath.sol";
 import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 import "./interfaces/IRoleManager.sol";
 import "./interfaces/IRemoteHub.sol";
@@ -24,8 +22,6 @@ import "hardhat/console.sol";
 contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
 
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeMath for uint256;
-    using StableMath for uint256;
 
     uint256 private constant MAX_SUPPLY = type(uint256).max;
     uint256 private constant RESOLUTION_INCREASE = 1e9;
@@ -60,14 +56,13 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     uint8 private _decimals;
 
-    address private DELETED_4;
+    IRemoteHub public remoteHub;
 
     mapping(address => uint256) public nonRebasingCreditsPerToken;
     mapping(address => RebaseOptions) public rebaseState;
     EnumerableSet.AddressSet _nonRebaseOwners;
     uint256 private _reentrancyGuardStatus;
     bool public paused;
-    IRemoteHub public remoteHub;
 
     // ---  events
 
@@ -174,6 +169,10 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         paused = false;
     }
 
+    function isPaused() external view returns (bool) {
+        return paused;
+    }
+
     function name() public view returns (string memory) {
         return _name;
     }
@@ -202,12 +201,12 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         return balanceOf(_owners.at(index));
     }
 
-    function totalSupplyOwners() external view returns (uint256){
+    function totalSupplyOwners() external view returns (uint256) {
 
         uint256 owners = this.ownerLength();
 
         uint256 total = 0;
-        for(uint256 index = 0; index < owners; index++){
+        for(uint256 index = 0; index < owners; index++) {
             total += this.balanceOf(_owners.at(index));
         }
 
@@ -396,20 +395,20 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         uint256 creditsDeducted = assetToCredit(_from, _value);
 
         _creditBalances[_from] = subCredits(_from, _creditBalances[_from], creditsDeducted, "Transfer amount exceeds balance");
-        _creditBalances[_to] = _creditBalances[_to].add(creditsCredited);
+        _creditBalances[_to] = _creditBalances[_to] + creditsCredited;
 
         if (isNonRebasingTo && !isNonRebasingFrom) {
             // Transfer to non-rebasing account from rebasing account, credits
             // are removed from the non rebasing tally
-            nonRebasingSupply = nonRebasingSupply.add(_value);
+            nonRebasingSupply = nonRebasingSupply + _value;
             // Update rebasingCredits by subtracting the deducted amount
-            _rebasingCredits = _rebasingCredits.sub(creditsDeducted);
+            _rebasingCredits = _rebasingCredits - creditsDeducted;
         } else if (!isNonRebasingTo && isNonRebasingFrom) {
             // Transfer to rebasing account from non-rebasing account
             // Decreasing non-rebasing credits by the amount that was sent
-            nonRebasingSupply = nonRebasingSupply.sub(_value);
+            nonRebasingSupply = nonRebasingSupply - _value;
             // Update rebasingCredits by adding the credited amount
-            _rebasingCredits = _rebasingCredits.add(creditsCredited);
+            _rebasingCredits = _rebasingCredits + creditsCredited;
         }
 
         _afterTokenTransfer(_from, _to, _value);
@@ -458,8 +457,7 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      */
     function increaseAllowance(address _spender, uint256 _addedValue) public whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _addedValue);
-        _allowances[msg.sender][_spender] = _allowances[msg.sender][_spender]
-            .add(scaledAmount);
+        _allowances[msg.sender][_spender] = _allowances[msg.sender][_spender] + scaledAmount;
         emit Approval(msg.sender, _spender, _allowances[msg.sender][_spender]);
         return true;
     }
@@ -505,17 +503,17 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         bool isNonRebasingAccount = _isNonRebasingAccount(_account);
 
         uint256 creditAmount = assetToCredit(_account, _amount);
-        _creditBalances[_account] = _creditBalances[_account].add(creditAmount);
+        _creditBalances[_account] = _creditBalances[_account] + creditAmount;
 
         // If the account is non rebasing and doesn't have a set creditsPerToken
         // then set it i.e. this is a mint from a fresh contract
         if (isNonRebasingAccount) {
-            nonRebasingSupply = nonRebasingSupply.add(_amount);
+            nonRebasingSupply = nonRebasingSupply + _amount;
         } else {
-            _rebasingCredits = _rebasingCredits.add(creditAmount);
+            _rebasingCredits = _rebasingCredits + creditAmount;
         }
 
-        _totalSupply = _totalSupply.add(_amount);
+        _totalSupply = _totalSupply + _amount;
 
         require(_totalSupply <= MAX_SUPPLY, "Max supply");
 
@@ -557,12 +555,12 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
         // Remove from the credit tallies and non-rebasing supply
         if (isNonRebasingAccount) {
-            nonRebasingSupply = nonRebasingSupply.sub(_amount);
+            nonRebasingSupply = nonRebasingSupply - _amount;
         } else {
-            _rebasingCredits = _rebasingCredits.sub(creditAmount);
+            _rebasingCredits = _rebasingCredits - creditAmount;
         }
 
-        _totalSupply = _totalSupply.sub(_amount);
+        _totalSupply = _totalSupply - _amount;
 
         _afterTokenTransfer(_account, address(0), _amount);
 
@@ -595,18 +593,16 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         require(_isNonRebasingAccount(_address), "Account has not opted out");
 
         // Convert balance into the same amount at the current exchange rate
-        uint256 newCreditBalance = _creditBalances[_address]
-            .mul(_rebasingCreditsPerToken)
-            .div(_creditsPerToken(_address));
+        uint256 newCreditBalance = _creditBalances[_address] * _rebasingCreditsPerToken / _creditsPerToken(_address);
 
         // Decreasing non rebasing supply
-        nonRebasingSupply = nonRebasingSupply.sub(balanceOf(_address));
+        nonRebasingSupply = nonRebasingSupply - balanceOf(_address);
 
         _creditBalances[_address] = newCreditBalance;
 
         // Increase rebasing credits, totalSupply remains unchanged so no
         // adjustment necessary
-        _rebasingCredits = _rebasingCredits.add(newCreditBalance);
+        _rebasingCredits = _rebasingCredits + newCreditBalance;
 
         rebaseState[_address] = RebaseOptions.OptIn;
 
@@ -623,13 +619,13 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         require(!_isNonRebasingAccount(_address), "Account has not opted in");
 
         // Increase non rebasing supply
-        nonRebasingSupply = nonRebasingSupply.add(balanceOf(_address));
+        nonRebasingSupply = nonRebasingSupply + balanceOf(_address);
         // Set fixed credits per token
         nonRebasingCreditsPerToken[_address] = _rebasingCreditsPerToken;
 
         // Decrease rebasing credits, total supply remains unchanged so no
         // adjustment necessary
-        _rebasingCredits = _rebasingCredits.sub(_creditBalances[_address]);
+        _rebasingCredits = _rebasingCredits - _creditBalances[_address];
 
         // Mark explicitly opted out of rebasing
         rebaseState[_address] = RebaseOptions.OptOut;
@@ -664,17 +660,13 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
             ? MAX_SUPPLY
             : _totalSupply + deltaR;
 
-        if (_totalSupply.sub(nonRebasingSupply) != 0) {
-            _rebasingCreditsPerToken = _rebasingCredits.divPrecisely(
-                _totalSupply.sub(nonRebasingSupply)
-            );
+        if (_totalSupply - nonRebasingSupply != 0) {
+            _rebasingCreditsPerToken = _rebasingCredits * 1e18 / (_totalSupply - nonRebasingSupply);
         }
 
         require(_rebasingCreditsPerToken > 0, "Invalid change in supply");
 
-        _totalSupply = _rebasingCredits
-            .divPrecisely(_rebasingCreditsPerToken)
-            .add(nonRebasingSupply);
+        _totalSupply = _rebasingCredits * 1e18 / _rebasingCreditsPerToken + nonRebasingSupply;
 
         NonRebaseInfo [] memory nonRebaseInfo = new NonRebaseInfo[](_nonRebaseOwners.length());
         for (uint256 i = 0; i < nonRebaseInfo.length; i++) {

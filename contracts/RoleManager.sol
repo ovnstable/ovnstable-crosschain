@@ -31,14 +31,23 @@ contract RoleManager is Initializable, AccessControlEnumerableUpgradeable, UUPSU
 
     function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
 
+    /**
+     * @return PORTFOLIO_AGENT_ROLE -- portfolio agent wallet (dev wallet)
+     */
     function PORTFOLIO_AGENT_ROLE() public pure returns(bytes32) {
         return keccak256("PORTFOLIO_AGENT_ROLE");
     }
 
+    /**
+     * @return UNIT_ROLE -- unit wallet (allows our services interract with some methods)
+     */
     function UNIT_ROLE() public pure returns(bytes32) {
         return keccak256("UNIT_ROLE");
     }
 
+    /**
+     * @return EXCHANGER -- exchange contract
+     */
     function EXCHANGER() public pure returns(bytes32) {
         return keccak256("EXCHANGER");
     }

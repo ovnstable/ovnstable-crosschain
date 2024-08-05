@@ -272,7 +272,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         StrategyWeight memory strategyWeight = StrategyWeight(_strategy, 0, 0, 0, 0, false, false);
 
         uint256 index; // default index = 0
-        if(strategyWeights.length != 0){
+        if (strategyWeights.length != 0) {
             index = strategyWeights.length; // next index = length (+1)
         }
 
@@ -292,7 +292,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
 
         // Remove gap from array
-        for (uint i = index; i < strategyWeights.length-1; i++){
+        for (uint i = index; i < strategyWeights.length - 1; i++) {
 
             StrategyWeight memory _tempWeight = strategyWeights[i+1];
 

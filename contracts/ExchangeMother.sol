@@ -7,28 +7,24 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "./interfaces/IInsuranceExchange.sol";
 import "./interfaces/IPortfolioManager.sol";
 import "./interfaces/IRemoteHub.sol";
+import "./interfaces/IStrategy.sol";
 import "hardhat/console.sol";
 
-// Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
-
-contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
 
     uint256 public constant LIQ_DELTA_DM   = 1e6;
-    uint256 public constant FISK_FACTOR_DM = 1e5;
+    uint256 public constant RISK_FACTOR_DM = 1e5;
 
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-
-    address private DELETED_0;
     IERC20 public usdc; // asset name
 
     IPortfolioManager public portfolioManager; //portfolio manager contract
 
-    address private DELETED_1;
+    address public profitRecipient;
 
     uint256 public buyFee;
     uint256 public buyFeeDenominator; // ~ 100 %
@@ -42,19 +38,14 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     // period between payouts in seconds, need to calc nextPayoutTime
     uint256 public payoutPeriod;
 
-    // range of time for starting near next payout time at seconds
-    // if time in [nextPayoutTime-payoutTimeRange;nextPayoutTime+payoutTimeRange]
-    //    then payouts can be started by payout() method anyone
-    // else if time more than nextPayoutTime+payoutTimeRange
-    //    then payouts started by any next buy/redeem
     uint256 public payoutTimeRange;
 
-    address private DELETED_2;
+    address public blockGetter;
 
     // last block number when buy/redeem was executed
     uint256 public lastBlockNumber;
 
-    uint256 private DELETED_3;
+    uint256 private DELETED_1;
     uint256 public abroadMax;
 
     address public insurance;
@@ -64,14 +55,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     uint256 public compensateLoss;
     uint256 public compensateLossDenominator;
-
-    address public profitRecipient;
-
-    address public blockGetter;
     
     IRemoteHub public remoteHub;
-
-    uint256 private _reentrancyGuardStatus;
 
     // ---  events
 
@@ -91,6 +76,15 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event EventExchange(string label, uint256 amount, uint256 fee, address sender);
     event PayoutEvent(uint256 profit, uint256 excessProfit, uint256 insurancePremium, uint256 insuranceLoss);
     event NextPayoutTime(uint256 nextPayoutTime);
+    event PayoutSimulationForInsurance(int256 premium);
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function renaming() public {
+        profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
+        blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;
+    } 
 
     // ---  initializer
 
@@ -140,13 +134,6 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     // ---  modifiers
-
-    modifier nonReentrant() {
-        require(_reentrancyGuardStatus != _ENTERED, "ReentrancyGuard: reentrant call");
-        _reentrancyGuardStatus = _ENTERED;
-        _;
-        _reentrancyGuardStatus = _NOT_ENTERED;
-    }
 
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
@@ -332,27 +319,24 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * The root method of protocol USDx
      * Calculates delta total NAV - total supply USDx and accrues profit or loss among all token holders
      *
-     * What do method?
+     * What this method does?
      * - Claim rewards from all strategy
      * - Increase liquidity index USDx on amount of profit
      * - Decrease liquidity index USDx on amount of loss
      *
      * Support Insurance mode: Only if insurance is set
-     * What the Insurance to do?
-     * If USDx has Loss then Exchange coverts the loss through Insurance
+     * What are Insurance's main actions?
+     * If USDx has loss then Exchange covers the loss through Insurance
      * if USDx has profit then Exchange send premium amount to Insurance
      *
      * Explain params:
      * @param simulate - allow to get amount loss/premium for prepare swapData (call.static)
      * @param swapData - Odos swap data for swapping OVN->asset or asset->OVN in Insurance
      */
-    function payout(bool simulate, IInsuranceExchange.SwapData memory swapData) payable external whenNotPaused onlyUnit nonReentrant returns (int256 swapAmount) {
+    function payout(bool simulate, IInsuranceExchange.SwapData memory swapData) payable external whenNotPaused onlyUnit nonReentrant {
         
         require(address(payoutManager()) != address(0) || usdx().nonRebaseOwnersLength() == 0, "Need to specify payoutManager address");
-
-        if (block.timestamp + payoutTimeRange < nextPayoutTime) {
-            return 0;
-        }
+        require(block.timestamp + payoutTimeRange >= nextPayoutTime, "payout not ready");
 
         // 0. call claiming reward and balancing on PM
         // 1. get current amount of USDx
@@ -382,13 +366,14 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             loss = totalUsdx - totalNav;
             uint256 oracleLossAmount = totalUsdx * oracleLoss / oracleLossDenominator;
 
-            if(loss <= oracleLossAmount) {
+            if (loss <= oracleLossAmount) {
                 revert('OracleLoss');
-            }else {
+            } else {
                 loss += totalUsdx * compensateLoss / compensateLossDenominator;
                 loss = _rebaseToAsset(loss);
                 if (simulate) {
-                    return -int256(loss);
+                    emit PayoutSimulationForInsurance(-int256(loss));
+                    revert("simulation revert");
                 }
                 if (swapData.amountIn != 0) {
                     IInsuranceExchange(insurance).compensate(swapData, loss, address(portfolioManager));
@@ -401,15 +386,16 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             // Positive rebase
             // USDx have profit and we need to execute next steps:
             // 1. Pay premium to Insurance
-            // 2. If profit more max delta then transfer excess profit to OVN wallet
+            // 2. If profit is more than max delta then transfer excess profit to OVN wallet
 
-            premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / FISK_FACTOR_DM);
+            premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / RISK_FACTOR_DM);
 
             if (simulate) {
-                return int256(premium);
+                emit PayoutSimulationForInsurance(int256(premium));
+                revert("simulation revert");
             }
 
-            if(premium > 0 && swapData.amountIn != 0) {
+            if (premium > 0 && swapData.amountIn != 0) {
                 portfolioManager.withdraw(premium);
                 SafeERC20.safeTransfer(usdc, insurance, premium);
 
@@ -456,7 +442,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             payoutManager().payoutDone(address(usdx()), nonRebaseInfo);
         }
 
-        require(usdx().totalSupply() == totalNav,'total != nav');
+        require(usdx().totalSupply() == totalNav, 'total != nav');
         require(usdx().totalSupply() == expectedTotalUsdx, 'total != expected');
 
         remoteHub.execMultiPayout{value: address(this).balance}(newDelta);
@@ -476,9 +462,22 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             nextPayoutTime = nextPayoutTime + payoutPeriod;
         }
         emit NextPayoutTime(nextPayoutTime);
+    }
 
-        // If this is not a simulation, then we return the value is not used in any way
-        return 0;
+    function getAvailabilityInfo() external view returns(uint256 _available, bool _paused) {
+        _paused = paused() || usdx().isPaused();
+
+        IPortfolioManager.StrategyWeight[] memory weights = portfolioManager.getAllStrategyWeights();
+        uint256 count = weights.length;
+
+        for (uint8 i = 0; i < count; i++) {
+            IPortfolioManager.StrategyWeight memory weight = weights[i];
+            IStrategy strategy = IStrategy(weight.strategy);
+
+            if (weight.enabled) {
+                _available += strategy.netAssetValue();
+            }
+        }
     }
 
     /**
@@ -502,7 +501,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         lastBlockNumber = blockNumber;
     }
 
-    function _takeFee(uint256 _amount, bool isBuy) internal view returns (uint256, uint256){
+    function _takeFee(uint256 _amount, bool isBuy) internal view returns (uint256, uint256) {
 
         uint256 fee;
         uint256 feeDenominator;
@@ -521,7 +520,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return (resultAmount, feeAmount);
     }
 
-    function _rebaseToAsset(uint256 _amount) internal view returns (uint256){
+    function _rebaseToAsset(uint256 _amount) internal view returns (uint256) {
 
         uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
         uint256 usdxDecimals = usdx().decimals();
@@ -534,7 +533,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return _amount;
     }
 
-    function _assetToRebase(uint256 _amount) internal view returns (uint256){
+    function _assetToRebase(uint256 _amount) internal view returns (uint256) {
 
         uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
         uint256 usdxDecimals = usdx().decimals();

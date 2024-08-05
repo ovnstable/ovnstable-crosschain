@@ -43,6 +43,8 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     
     IRemoteHub public remoteHub;
 
+    uint256 public ccipGasLimit;
+
     // ---  events
 
     // Event emitted when a message is sent to another chain.
@@ -94,6 +96,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        ccipGasLimit = 200_000;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -180,6 +183,11 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         allowlistedSenders[_sender] = allowed;
     }
 
+    /// @dev Set new gasLimit for CCIP send
+    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyAdmin {
+        ccipGasLimit = _ccipGasLimit;
+    }
+
     function _sendViaCCIP(MultichainCallUpgradeItem memory item) internal
         onlyAllowlistedDestinationChain(item.chainSelector)
         validateReceiver(item.receiver)
@@ -217,14 +225,14 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         );
     }
 
-    function _buildCCIPMessage(MultichainCallUpgradeItem memory item) private pure returns (Client.EVM2AnyMessage memory) {
+    function _buildCCIPMessage(MultichainCallUpgradeItem memory item) private view returns (Client.EVM2AnyMessage memory) {
         
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encode(item.receiver),
                 data: abi.encode(item.newImplementation),
                 tokenAmounts: new Client.EVMTokenAmount[](0),
-                extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 200_000})),
+                extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: ccipGasLimit})),
                 feeToken: address(0)
             });
     }
