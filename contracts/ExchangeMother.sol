@@ -55,6 +55,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     uint256 public compensateLoss;
     uint256 public compensateLossDenominator;
+
+    uint256 public profitFee;
+    uint256 public profitFeeDenominator;
     
     IRemoteHub public remoteHub;
 
@@ -65,6 +68,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event PortfolioManagerUpdated(address portfolioManager);
     event BuyFeeUpdated(uint256 fee, uint256 feeDenominator);
     event RedeemFeeUpdated(uint256 fee, uint256 feeDenominator);
+    event ProfitFeeUpdated(uint256 fee, uint256 feeDenominator);
     event PayoutTimesUpdated(uint256 nextPayoutTime, uint256 payoutPeriod, uint256 payoutTimeRange);
     event InsuranceUpdated(address insurance);
     event BlockGetterUpdated(address blockGetter);
@@ -113,6 +117,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         abroadMax = 1000350;
         oracleLossDenominator = 100000;
         compensateLossDenominator = 100000;
+
+        profitFee = 0; // 0%
+        profitFeeDenominator = 100000;
 
         remoteHub = IRemoteHub(_remoteHub);
     }
@@ -202,6 +209,14 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         redeemFee = _fee;
         redeemFeeDenominator = _feeDenominator;
         emit RedeemFeeUpdated(redeemFee, redeemFeeDenominator);
+    }
+
+    function setProfitFee(uint256 _fee, uint256 _feeDenominator) external onlyPortfolioAgent {
+        require(_feeDenominator != 0, "Zero denominator not allowed");
+        require(_feeDenominator >= _fee, "fee > denominator");
+        profitFee = _fee;
+        profitFeeDenominator = _feeDenominator;
+        emit ProfitFeeUpdated(profitFee, profitFeeDenominator);
     }
 
     function setOracleLoss(uint256 _oracleLoss,  uint256 _denominator) external onlyPortfolioAgent {
@@ -388,6 +403,14 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             // 1. Pay premium to Insurance
             // 2. If profit is more than max delta then transfer excess profit to OVN wallet
 
+            if(profitFee > 0) {
+                require(profitRecipient != address(0), 'profitRecipient address is zero');
+                uint256 profitRecipientAmount = (totalNav - totalUsdx) * profitFee / profitFeeDenominator;
+                portfolioManager.withdraw(profitRecipientAmount);
+                SafeERC20.safeTransfer(usdc, profitRecipient, profitRecipientAmount);                
+                totalNav = totalNav - _assetToRebase(profitRecipientAmount);
+            }
+
             premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / RISK_FACTOR_DM);
 
             if (simulate) {
@@ -491,10 +514,12 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         // https://developer.arbitrum.io/time#case-study-multicall
         uint256 blockNumber = Multicall2(0x842eC2c7D803033Edf55E478F461FC547Bc54EB2).getBlockNumber();
 
+        bool isFreeRider = roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender);
+
         // Flag isBalanced take about:
         // PortfolioManager run balance function and unstake liquidity from non cash strategies
         // Check is not actual if stake/unstake will be only from cash strategy (for example Aave)
-        if (isBalanced) {
+        if (!isFreeRider && isBalanced) {
             require(lastBlockNumber < blockNumber, "Only once in block");
         }
 
@@ -514,7 +539,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             feeDenominator = redeemFeeDenominator;
         }
 
-        uint256 feeAmount = (_amount * fee) / feeDenominator;
+        bool isFreeRider = roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender);
+
+        uint256 feeAmount = isFreeRider ? 0 : (_amount * fee) / feeDenominator;
         uint256 resultAmount = _amount - feeAmount;
 
         return (resultAmount, feeAmount);

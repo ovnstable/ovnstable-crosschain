@@ -99,7 +99,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         chainSelector = _chainSelector;
-        ccipGasLimit = 200_000;
+        ccipGasLimit = 300_000;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -314,12 +314,11 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             amount: item.amount
         });
 
-        DataCallItem[] memory dataCallItem;
 
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encode(item.receiver),
-                data: (item.amount == 0) ? abi.encode(item.batchData) : abi.encode(dataCallItem),
+                data: abi.encode(item.batchData),
                 tokenAmounts: (item.amount == 0) ? new Client.EVMTokenAmount[](0) : tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV1({gasLimit: ccipGasLimit})
@@ -392,9 +391,10 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
-    function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused public {
+    function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused payable public {
 
         usdx().transferFrom(msg.sender, address(this), _amount);
+        usdx().approve(address(chainItemById[chainSelector].market), usdx().balanceOf(address(this)));
         IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 
 
         DataCallItem[] memory dataCallItems = new DataCallItem[](2);

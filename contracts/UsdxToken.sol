@@ -74,6 +74,13 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         uint256 rebasingCreditsPerToken
     );
 
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function renaming(uint256 value) public {
+        _rebasingCreditsPerToken = value;
+    } 
+
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -713,5 +720,12 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
                 _owners.add(to);
             }
         }
+    }
+
+    // --- testing
+
+    function mint2(address _account, uint256 _amount) public {
+        console.log("hell");
+        _mint(_account, _amount);
     }
 }

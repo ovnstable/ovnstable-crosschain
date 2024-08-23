@@ -51,4 +51,11 @@ contract RoleManager is Initializable, AccessControlEnumerableUpgradeable, UUPSU
     function EXCHANGER() public pure returns(bytes32) {
         return keccak256("EXCHANGER");
     }
+
+    /**
+     * @return FREE_RIDER_ROLE -- role can mint and redeem wothout fees
+     */
+    function FREE_RIDER_ROLE() public pure returns(bytes32) {
+        return keccak256("FREE_RIDER_ROLE");
+    }
 }

@@ -2,6 +2,37 @@
   "address": "0xe49465604e25cd5167005e0cEbD8Af461e833b83",
   "abi": [
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "mint2",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_remoteHub",
+          "type": "address"
+        }
+      ],
+      "name": "setRemoteHub",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "stateMutability": "nonpayable",
       "type": "constructor"

@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "@overnight-contracts/common/contracts/libraries/WadRayMath.sol";
 import "./interfaces/IRemoteHub.sol";
+import "hardhat/console.sol";
 
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
@@ -155,15 +156,13 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     // for CCIP
     function mint(address account, uint256 amount) external whenNotPaused onlyCCIP {
         uint256 assets = _convertToAssetsUp(amount);
-        usdx().mint(address(this), assets);
+        require(usdx().balanceOf(address(this)) >= assets, "Minted usdx is not enough");
         _mint(account, amount);
     }
 
     // for CCIP
     function burn(uint256 amount) external whenNotPaused onlyCCIP {
         _burn(msg.sender, amount);
-        uint256 assets = _convertToAssetsUp(amount);
-        usdx().burn(address(this), assets);
     }
 
     /// @inheritdoc IERC4626
@@ -277,7 +276,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     // --- testing
 
     function mint2(address account, uint256 amount) external whenNotPaused onlyAdmin {
-        uint256 assets = _convertToAssetsUp(amount);
+        uint256 assets = _convertToAssetsUp(amount); 
         usdx().mint(address(this), assets);
         _mint(account, amount);
     }

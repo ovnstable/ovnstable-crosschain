@@ -48,15 +48,18 @@ function deleteFolderRecursive(folderPath: string) {
 
 task("node2", 'Starts a JSON-RPC server on top of Hardhat EVM')
 	.addParam("src", "The account's address")
-	.addParam("dest", "The account's address")
+	.addParam("dest1", "The account's address")
+    .addParam("dest2", "The account's address")
     .setAction(async (taskArgs, { ethers }) => {
 		const { run } = require('hardhat');
 
-		await deleteFolderRecursive('./deployments/_source');
-		await deleteFolderRecursive('./deployments/_dest');
+		await deleteFolderRecursive('./deployments/_S');
+		await deleteFolderRecursive('./deployments/_D1');
+        await deleteFolderRecursive('./deployments/_D2');
 
-		await copyFolder('./deployments/' + taskArgs.src, './deployments/_source');
-		await copyFolder('./deployments/' + taskArgs.dest, './deployments/_dest');
+		await copyFolder('./deployments/' + taskArgs.src, './deployments/_S');
+		await copyFolder('./deployments/' + taskArgs.dest1, './deployments/_D1');
+        await copyFolder('./deployments/' + taskArgs.dest2, './deployments/_D2');
 
 		await run('node', {
 			...taskArgs,
