@@ -50,14 +50,6 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         bool enabledReward
     );
 
-    // ---  for deploy
-
-    // method only for redeploy, will be removed after
-    function renaming() public {
-        totalRiskFactor = 7500;
-        navSlippageBp = 4;
-    }
-
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor 
@@ -519,4 +511,13 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
         return totalAssetPrice;
     }
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function afterRedeploy() public {
+        totalRiskFactor = 7500;
+        navSlippageBp = 4;
+    }
+    
 }

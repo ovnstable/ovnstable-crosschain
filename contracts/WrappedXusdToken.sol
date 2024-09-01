@@ -14,9 +14,8 @@ import "hardhat/console.sol";
 contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     using WadRayMath for uint256;
 
-    address private DELETED_0;
+    IRemoteHub private remoteHub;
     uint8 private _decimals;
-    IRemoteHub public remoteHub;
     bool public paused;
 
     // ---  events
@@ -279,6 +278,14 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         xusd().transferFrom(_from, address(this), assets);
         xusd().mint(address(this), assets);
         _mint(_to, amount);
+    }
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function afterRedeploy(address _remoteHub) public {
+        paused = false;
+        remoteHub = IRemoteHub(_remoteHub);
     }
 
 }

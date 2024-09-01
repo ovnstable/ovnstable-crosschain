@@ -3,7 +3,7 @@
   "abi": [
     {
       "inputs": [],
-      "name": "renaming",
+      "name": "afterRedeploy",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

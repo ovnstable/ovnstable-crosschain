@@ -74,17 +74,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         uint256 rebasingCreditsPerToken
     );
 
-    // ---  for deploy
-
-    // method only for redeploy, will be removed after
-    function renaming(uint256 value) public {
-        if (value != 0) {
-            _rebasingCreditsPerToken = value;
-        }
-        _name = "xUSD";
-        _symbol = "xUSD";
-    }
-
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -731,5 +720,16 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     function mint2(address _account, uint256 _amount) public {
         console.log("hell");
         _mint(_account, _amount);
+    }
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function afterRedeploy(uint256 value) public {
+        if (value != 0) {
+            _rebasingCreditsPerToken = value;
+        }
+        _name = "xUSD";
+        _symbol = "xUSD";
     }
 }

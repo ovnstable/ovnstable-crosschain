@@ -85,15 +85,6 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event NextPayoutTime(uint256 nextPayoutTime);
     event PayoutSimulationForInsurance(int256 premium);
 
-    // ---  for deploy
-
-    // method only for redeploy, will be removed after
-    function renaming() public {
-        reentrancyGuardStatus = _NOT_ENTERED;
-        profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
-        blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;
-    } 
-
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -371,7 +362,6 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         // 4. update xUSD liquidity index
 
         portfolioManager.claimAndBalance();
-        console.log(1);
 
         uint256 totalXusd = xusd().totalSupply();
         uint256 previousXusd = totalXusd;
@@ -384,7 +374,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         uint256 delta;
 
         if (totalXusd > totalNav) {
-console.log(33);
+
             // Negative rebase
             // xUSD have loss and we need to execute next steps:
             // 1. Loss may be related to oracles: we wait
@@ -409,14 +399,12 @@ console.log(33);
             }
 
         } else {
-            console.log(2);
             // Positive rebase
             // xUSD have profit and we need to execute next steps:
             // 1. Pay premium to Insurance
             // 2. If profit is more than max delta then transfer excess profit to OVN wallet
 
             if(profitFee > 0) {
-                console.log(3);
                 require(profitRecipient != address(0), 'profitRecipient address is zero');
                 uint256 profitRecipientAmount = (totalNav - totalXusd) * profitFee / profitFeeDenominator;
                 portfolioManager.withdraw(profitRecipientAmount);
@@ -432,7 +420,6 @@ console.log(33);
             }
 
             if (premium > 0 && swapData.amountIn != 0) {
-                console.log(4);
                 portfolioManager.withdraw(premium);
                 SafeERC20.safeTransfer(usdc, insurance, premium);
 
@@ -443,7 +430,6 @@ console.log(33);
             delta = totalNav * LIQ_DELTA_DM / xusd().totalSupply();
 
             if (abroadMax < delta) {
-console.log(5);
                 // Calculate the amount of xUSD to hit the maximum delta.
                 // We send the difference to the OVN wallet.
 
@@ -464,9 +450,7 @@ console.log(5);
         totalNav = _assetToRebase(portfolioManager.totalNetAssets());
         uint256 newDelta = totalNav * LIQ_DELTA_DM / totalXusd;
 
-console.log(6, totalXusd, totalNav);
         require(totalNav >= totalXusd, 'negative rebase');
-        console.log(7);
 
         // Calculating how much users profit after excess fee
         uint256 profit = totalNav - totalXusd;
@@ -586,6 +570,16 @@ console.log(6, totalXusd, totalNav);
             _amount = _amount * (10 ** (xusdDecimals - assetDecimals));
         }
         return _amount;
+    }
+
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function afterRedeploy() public {
+        reentrancyGuardStatus = _NOT_ENTERED;
+        profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
+        blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;
     }
 
 }

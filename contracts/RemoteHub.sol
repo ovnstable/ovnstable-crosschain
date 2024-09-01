@@ -17,7 +17,6 @@ import "hardhat/console.sol";
 contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
-    address public constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     struct MultichainCallItem {
         uint64 chainSelector;
@@ -176,9 +175,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     modifier onlyAdmin() {
-        console.log("tuta111");
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        console.log("tuta11133");
         _;
     }
 
@@ -303,7 +300,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             any2EvmMessage.sourceChainSelector,
             abi.decode(any2EvmMessage.sender, (address)),
             abi.decode(any2EvmMessage.data, (DataCallItem[])),
-            any2EvmMessage.destTokenAmounts.length == 0 ? ZERO_ADDRESS : any2EvmMessage.destTokenAmounts[0].token,
+            any2EvmMessage.destTokenAmounts.length == 0 ? address(0) : any2EvmMessage.destTokenAmounts[0].token,
             any2EvmMessage.destTokenAmounts.length == 0 ? 0 : any2EvmMessage.destTokenAmounts[0].amount
         );
     }
@@ -315,7 +312,6 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             token: item.token,
             amount: item.amount
         });
-
 
         return
             Client.EVM2AnyMessage({
@@ -385,7 +381,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             MultichainCallItem memory multichainCallItem = MultichainCallItem({
                 chainSelector: chainItems[i].chainSelector,
                 receiver: chainItems[i].remoteHub,
-                token: ZERO_ADDRESS,
+                token: address(0),
                 amount: 0,
                 batchData: dataCallItems
             });

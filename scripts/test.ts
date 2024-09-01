@@ -316,15 +316,15 @@ async function initDeploySet(chainType: ChainType) {
             params: [usdpRich],
           }); 
 
-        await exchange.renaming();
-        await portfolioManager.renaming();
-        await xusdToken.renaming(0);
-        await wrappedXusdToken.renaming();
+        await exchange.afterRedeploy();
+        await portfolioManager.afterRedeploy();
+        await xusdToken.afterRedeploy(0);
+        await wrappedXusdToken.afterRedeploy(remoteHub.target);
         await xusdToken.connect(richSigner).approve(wrappedXusdToken.target, 10000000000);
         await wrappedXusdToken.connect(signer3).getMoney(richSigner, chain[ChainType.SOURCE].ccipPool, 1000000000); // return for transfer, delete for payout
         chain[chainType].liqIndex = await xusdToken.rebasingCreditsPerTokenHighres();
     } else {
-        await xusdToken.renaming(chain[0].liqIndex);
+        await xusdToken.afterRedeploy(chain[0].liqIndex);
         await xusdToken.connect(signer3).mint2(wrappedXusdToken.target, 1000000000000);
     }
 
