@@ -7,7 +7,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "./interfaces/IInsuranceExchange.sol";
 import "./interfaces/IPortfolioManager.sol";
@@ -15,10 +14,14 @@ import "./interfaces/IRemoteHub.sol";
 import "./interfaces/IStrategy.sol";
 import "hardhat/console.sol";
 
-contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
 
     uint256 public constant LIQ_DELTA_DM   = 1e6;
     uint256 public constant RISK_FACTOR_DM = 1e5;
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+
+    uint256 public reentrancyGuardStatus;
 
     IERC20 public usdc; // asset name
 
@@ -86,6 +89,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     // method only for redeploy, will be removed after
     function renaming() public {
+        reentrancyGuardStatus = _NOT_ENTERED;
         profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
         blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;
     } 
@@ -132,8 +136,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return remoteHub.roleManager();
     }
 
-    function usdx() internal view returns(IUsdxToken) {
-        return remoteHub.usdx();
+    function xusd() internal view returns(IXusdToken) {
+        return remoteHub.xusd();
     }
 
     function payoutManager() internal view returns(IPayoutManager) {
@@ -155,6 +159,13 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     modifier onlyUnit() {
         require(roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender), "Caller doesn't have UNIT_ROLE role");
         _;
+    }
+
+    modifier nonReentrant() {
+        require(reentrancyGuardStatus != _ENTERED, "ReentrancyGuard: reentrant call");
+        reentrancyGuardStatus = _ENTERED;
+        _;
+        reentrancyGuardStatus = _NOT_ENTERED;
     }
 
     // --- setters
@@ -263,7 +274,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         uint256 amount; // amount asset
     }
 
-    // Minting USDx in exchange for an asset
+    // Minting xUSD in exchange for an asset
     function mint(MintParams calldata params) external whenNotPaused nonReentrant returns (uint256) {
 
         address _asset = params.asset;
@@ -276,8 +287,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         require(_amount > 0, "Amount of asset is zero");
 
-        uint256 usdxAmount = _assetToRebase(_amount);
-        require(usdxAmount > 0, "Amount of USDx is zero");
+        uint256 xusdAmount = _assetToRebase(_amount);
+        require(xusdAmount > 0, "Amount of xUSD is zero");
 
         uint256 _targetBalance = usdc.balanceOf(address(portfolioManager)) + _amount;
         SafeERC20.safeTransferFrom(usdc, msg.sender, address(portfolioManager), _amount);
@@ -288,9 +299,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         uint256 buyFeeAmount;
         uint256 buyAmount;
-        (buyAmount, buyFeeAmount) = _takeFee(usdxAmount, true);
+        (buyAmount, buyFeeAmount) = _takeFee(xusdAmount, true);
 
-        usdx().mint(msg.sender, buyAmount);
+        xusd().mint(msg.sender, buyAmount);
 
         emit EventExchange("mint", buyAmount, buyFeeAmount, msg.sender);
 
@@ -299,13 +310,13 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     /**
      * @param _asset Asset to redeem
-     * @param _amount Amount of USDx to burn
+     * @param _amount Amount of xUSD to burn
      * @return Amount of asset unstacked and transferred to caller
      */
     function redeem(address _asset, uint256 _amount) external whenNotPaused nonReentrant returns (uint256) {
         require(_asset == address(usdc), "Only asset available for redeem");
-        require(_amount > 0, "Amount of USDx is zero");
-        require(usdx().balanceOf(msg.sender) >= _amount, "Not enough tokens to redeem");
+        require(_amount > 0, "Amount of xUSD is zero");
+        require(xusd().balanceOf(msg.sender) >= _amount, "Not enough tokens to redeem");
 
         uint256 assetAmount = _rebaseToAsset(_amount);
         require(assetAmount > 0, "Amount of asset is zero");
@@ -319,7 +330,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         _requireOncePerBlock(isBalanced);
 
         // Or just burn from sender
-        usdx().burn(msg.sender, _amount);
+        xusd().burn(msg.sender, _amount);
 
         require(usdc.balanceOf(address(this)) >= redeemAmount, "Not enough for transfer redeemAmount");
         SafeERC20.safeTransfer(usdc, msg.sender, redeemAmount);
@@ -331,18 +342,18 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     /**
      * @dev Payout
-     * The root method of protocol USDx
-     * Calculates delta total NAV - total supply USDx and accrues profit or loss among all token holders
+     * The root method of protocol xUSD
+     * Calculates delta total NAV - total supply xUSD and accrues profit or loss among all token holders
      *
      * What this method does?
      * - Claim rewards from all strategy
-     * - Increase liquidity index USDx on amount of profit
-     * - Decrease liquidity index USDx on amount of loss
+     * - Increase liquidity index xUSD on amount of profit
+     * - Decrease liquidity index xUSD on amount of loss
      *
      * Support Insurance mode: Only if insurance is set
      * What are Insurance's main actions?
-     * If USDx has loss then Exchange covers the loss through Insurance
-     * if USDx has profit then Exchange send premium amount to Insurance
+     * If xUSD has loss then Exchange covers the loss through Insurance
+     * if xUSD has profit then Exchange send premium amount to Insurance
      *
      * Explain params:
      * @param simulate - allow to get amount loss/premium for prepare swapData (call.static)
@@ -350,19 +361,20 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      */
     function payout(bool simulate, IInsuranceExchange.SwapData memory swapData) payable external whenNotPaused onlyUnit nonReentrant {
         
-        require(address(payoutManager()) != address(0) || usdx().nonRebaseOwnersLength() == 0, "Need to specify payoutManager address");
+        require(address(payoutManager()) != address(0) || xusd().nonRebaseOwnersLength() == 0, "Need to specify payoutManager address");
         require(block.timestamp + payoutTimeRange >= nextPayoutTime, "payout not ready");
 
         // 0. call claiming reward and balancing on PM
-        // 1. get current amount of USDx
+        // 1. get current amount of xUSD
         // 2. get total sum of asset we can get from any source
-        // 3. calc difference between total count of USDx and asset
-        // 4. update USDx liquidity index
+        // 3. calc difference between total count of xUSD and asset
+        // 4. update xUSD liquidity index
 
         portfolioManager.claimAndBalance();
+        console.log(1);
 
-        uint256 totalUsdx = usdx().totalSupply();
-        uint256 previousUsdx = totalUsdx;
+        uint256 totalXusd = xusd().totalSupply();
+        uint256 previousXusd = totalXusd;
 
         uint256 totalNav = _assetToRebase(portfolioManager.totalNetAssets());
         uint256 excessProfit;
@@ -371,20 +383,20 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         uint256 delta;
 
-        if (totalUsdx > totalNav) {
-
+        if (totalXusd > totalNav) {
+console.log(33);
             // Negative rebase
-            // USDx have loss and we need to execute next steps:
+            // xUSD have loss and we need to execute next steps:
             // 1. Loss may be related to oracles: we wait
             // 2. Loss is real then compensate all loss + [1] bps
 
-            loss = totalUsdx - totalNav;
-            uint256 oracleLossAmount = totalUsdx * oracleLoss / oracleLossDenominator;
+            loss = totalXusd - totalNav;
+            uint256 oracleLossAmount = totalXusd * oracleLoss / oracleLossDenominator;
 
             if (loss <= oracleLossAmount) {
                 revert('OracleLoss');
             } else {
-                loss += totalUsdx * compensateLoss / compensateLossDenominator;
+                loss += totalXusd * compensateLoss / compensateLossDenominator;
                 loss = _rebaseToAsset(loss);
                 if (simulate) {
                     emit PayoutSimulationForInsurance(-int256(loss));
@@ -397,21 +409,22 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             }
 
         } else {
-
+            console.log(2);
             // Positive rebase
-            // USDx have profit and we need to execute next steps:
+            // xUSD have profit and we need to execute next steps:
             // 1. Pay premium to Insurance
             // 2. If profit is more than max delta then transfer excess profit to OVN wallet
 
             if(profitFee > 0) {
+                console.log(3);
                 require(profitRecipient != address(0), 'profitRecipient address is zero');
-                uint256 profitRecipientAmount = (totalNav - totalUsdx) * profitFee / profitFeeDenominator;
+                uint256 profitRecipientAmount = (totalNav - totalXusd) * profitFee / profitFeeDenominator;
                 portfolioManager.withdraw(profitRecipientAmount);
                 SafeERC20.safeTransfer(usdc, profitRecipient, profitRecipientAmount);                
                 totalNav = totalNav - _assetToRebase(profitRecipientAmount);
             }
 
-            premium = _rebaseToAsset((totalNav - totalUsdx) * portfolioManager.getTotalRiskFactor() / RISK_FACTOR_DM);
+            premium = _rebaseToAsset((totalNav - totalXusd) * portfolioManager.getTotalRiskFactor() / RISK_FACTOR_DM);
 
             if (simulate) {
                 emit PayoutSimulationForInsurance(int256(premium));
@@ -419,6 +432,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             }
 
             if (premium > 0 && swapData.amountIn != 0) {
+                console.log(4);
                 portfolioManager.withdraw(premium);
                 SafeERC20.safeTransfer(usdc, insurance, premium);
 
@@ -426,47 +440,49 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
                 totalNav = totalNav - _assetToRebase(premium);
             }
 
-            delta = totalNav * LIQ_DELTA_DM / usdx().totalSupply();
+            delta = totalNav * LIQ_DELTA_DM / xusd().totalSupply();
 
             if (abroadMax < delta) {
-
-                // Calculate the amount of USDx to hit the maximum delta.
+console.log(5);
+                // Calculate the amount of xUSD to hit the maximum delta.
                 // We send the difference to the OVN wallet.
 
                 uint256 newTotalSupply = totalNav * LIQ_DELTA_DM / abroadMax;
-                excessProfit = newTotalSupply - usdx().totalSupply();
+                excessProfit = newTotalSupply - xusd().totalSupply();
 
-                // Mint USDx to OVN wallet
+                // Mint xUSD to OVN wallet
                 require(profitRecipient != address(0), 'profitRecipient address is zero');
-                usdx().mint(profitRecipient, excessProfit);
+                xusd().mint(profitRecipient, excessProfit);
             }
         }
 
         // In case positive rebase and negative rebase the value changes and we must update it:
-        // - totalUsdx
+        // - totalXusd
         // - totalNav
 
-        totalUsdx = usdx().totalSupply();
+        totalXusd = xusd().totalSupply();
         totalNav = _assetToRebase(portfolioManager.totalNetAssets());
-        uint256 newDelta = totalNav * LIQ_DELTA_DM / totalUsdx;
+        uint256 newDelta = totalNav * LIQ_DELTA_DM / totalXusd;
 
-        require(totalNav >= totalUsdx, 'negative rebase');
+console.log(6, totalXusd, totalNav);
+        require(totalNav >= totalXusd, 'negative rebase');
+        console.log(7);
 
         // Calculating how much users profit after excess fee
-        uint256 profit = totalNav - totalUsdx;
+        uint256 profit = totalNav - totalXusd;
 
-        uint256 expectedTotalUsdx = previousUsdx + profit + excessProfit;
+        uint256 expectedTotalXusd = previousXusd + profit + excessProfit;
 
-        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = usdx().changeSupply(totalNav);
+        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = xusd().changeSupply(totalNav);
 
         // notify listener about payout done
         if (address(payoutManager()) != address(0)) {
-            usdx().mint(address(payoutManager()), nonRebaseDelta);
-            payoutManager().payoutDone(address(usdx()), nonRebaseInfo);
+            xusd().mint(address(payoutManager()), nonRebaseDelta);
+            payoutManager().payoutDone(address(xusd()), nonRebaseInfo);
         }
 
-        require(usdx().totalSupply() == totalNav, 'total != nav');
-        require(usdx().totalSupply() == expectedTotalUsdx, 'total != expected');
+        require(xusd().totalSupply() == totalNav, 'total != nav');
+        require(xusd().totalSupply() == expectedTotalXusd, 'total != expected');
 
         remoteHub.execMultiPayout{value: address(this).balance}(newDelta);
 
@@ -488,7 +504,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     function getAvailabilityInfo() external view returns(uint256 _available, bool _paused) {
-        _paused = paused() || usdx().isPaused();
+        _paused = paused() || xusd().isPaused();
 
         IPortfolioManager.StrategyWeight[] memory weights = portfolioManager.getAllStrategyWeights();
         uint256 count = weights.length;
@@ -550,11 +566,11 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function _rebaseToAsset(uint256 _amount) internal view returns (uint256) {
 
         uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
-        uint256 usdxDecimals = usdx().decimals();
-        if (assetDecimals > usdxDecimals) {
-            _amount = _amount * (10 ** (assetDecimals - usdxDecimals));
+        uint256 xusdDecimals = xusd().decimals();
+        if (assetDecimals > xusdDecimals) {
+            _amount = _amount * (10 ** (assetDecimals - xusdDecimals));
         } else {
-            _amount = _amount / (10 ** (usdxDecimals - assetDecimals));
+            _amount = _amount / (10 ** (xusdDecimals - assetDecimals));
         }
 
         return _amount;
@@ -563,11 +579,11 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function _assetToRebase(uint256 _amount) internal view returns (uint256) {
 
         uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
-        uint256 usdxDecimals = usdx().decimals();
-        if (assetDecimals > usdxDecimals) {
-            _amount = _amount / (10 ** (assetDecimals - usdxDecimals));
+        uint256 xusdDecimals = xusd().decimals();
+        if (assetDecimals > xusdDecimals) {
+            _amount = _amount / (10 ** (assetDecimals - xusdDecimals));
         } else {
-            _amount = _amount * (10 ** (usdxDecimals - assetDecimals));
+            _amount = _amount * (10 ** (xusdDecimals - assetDecimals));
         }
         return _amount;
     }

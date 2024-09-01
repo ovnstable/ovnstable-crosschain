@@ -5,7 +5,7 @@
       "inputs": [],
       "name": "checkUpgrading",
       "outputs": [],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {

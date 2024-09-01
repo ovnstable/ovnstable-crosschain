@@ -21,20 +21,20 @@ interface IExchange {
 
     function balance() external view returns (uint256);
 
-    // Minting USDx in exchange for an asset
+    // Minting xUSD in exchange for an asset
 
     function mint(MintParams calldata params) external returns (uint256);
 
     /**
      * @param _asset Asset to spend
      * @param _amount Amount of asset to spend
-     * @return Amount of minted USDx to caller
+     * @return Amount of minted xUSD to caller
      */
     function buy(address _asset, uint256 _amount) external returns (uint256);
 
     /**
      * @param _asset Asset to redeem
-     * @param _amount Amount of USDx to burn
+     * @param _amount Amount of xUSD to burn
      * @return Amount of asset unstacked and transferred to caller
      */
     function redeem(address _asset, uint256 _amount) external returns (uint256);

@@ -3,6 +3,26 @@
   "abi": [
     {
       "inputs": [],
+      "name": "renaming",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_remoteHub",
+          "type": "address"
+        }
+      ],
+      "name": "setRemoteHub",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "stateMutability": "nonpayable",
       "type": "constructor"
     },

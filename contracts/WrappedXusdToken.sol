@@ -4,7 +4,6 @@ pragma solidity >=0.8.0 <0.9.0;
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "@overnight-contracts/common/contracts/libraries/WadRayMath.sol";
 import "./interfaces/IRemoteHub.sol";
@@ -12,7 +11,7 @@ import "hardhat/console.sol";
 
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
-contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     using WadRayMath for uint256;
 
     address private DELETED_0;
@@ -51,8 +50,8 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         return remoteHub.roleManager();
     }
 
-    function usdx() internal view returns(IUsdxToken) {
-        return remoteHub.usdx();
+    function xusd() internal view returns(IXusdToken) {
+        return remoteHub.xusd();
     }
 
     // ---  modifiers
@@ -130,7 +129,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         require(assets != 0, "Zero assets not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
-        usdx().transferFrom(msg.sender, address(this), assets);
+        xusd().transferFrom(msg.sender, address(this), assets);
 
         uint256 shares = _convertToSharesDown(assets);
 
@@ -156,7 +155,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     // for CCIP
     function mint(address account, uint256 amount) external whenNotPaused onlyCCIP {
         uint256 assets = _convertToAssetsUp(amount);
-        require(usdx().balanceOf(address(this)) >= assets, "Minted usdx is not enough");
+        require(xusd().balanceOf(address(this)) >= assets, "Minted xusd is not enough");
         _mint(account, amount);
     }
 
@@ -173,7 +172,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         uint256 assets = _convertToAssetsUp(shares);
 
         if (assets != 0) {
-            usdx().transferFrom(msg.sender, address(this), assets);
+            xusd().transferFrom(msg.sender, address(this), assets);
         }
 
         _mint(receiver, shares);
@@ -211,7 +210,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
             _burn(owner, shares);
         }
 
-        usdx().transfer(receiver, assets);
+        xusd().transfer(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
@@ -245,7 +244,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         uint256 assets = _convertToAssetsDown(shares);
 
         if (assets != 0) {
-            usdx().transfer(receiver, assets);
+            xusd().transfer(receiver, assets);
         }
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -254,7 +253,7 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     function rate() public view returns (uint256) {
-        return 10 ** 54 / usdx().rebasingCreditsPerTokenHighres();
+        return 10 ** 54 / xusd().rebasingCreditsPerTokenHighres();
     }
 
     function _convertToSharesUp(uint256 assets) internal view returns (uint256) {
@@ -275,10 +274,11 @@ contract WrappedUsdxToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
 
     // --- testing
 
-    function mint2(address account, uint256 amount) external whenNotPaused onlyAdmin {
+    function getMoney(address _from, address _to, uint256 amount) external whenNotPaused onlyAdmin {
         uint256 assets = _convertToAssetsUp(amount); 
-        usdx().mint(address(this), assets);
-        _mint(account, amount);
+        xusd().transferFrom(_from, address(this), assets);
+        xusd().mint(address(this), assets);
+        _mint(_to, amount);
     }
 
 }

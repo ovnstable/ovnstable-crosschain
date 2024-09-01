@@ -21,8 +21,8 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
     event RemoteHubUpdated(address remoteHub);
     event MarketUpdatedTokens(address usdcToken);
     event MarketUpdatedParams(address exchange);
-    event Wrap(address asset, uint256 amount, address receiver, uint256 wrappedUsdxAmount);
-    event Unwrap(address asset, uint256 amount, address receiver, uint256 unwrappedUsdxAmount);
+    event Wrap(address asset, uint256 amount, address receiver, uint256 wrappedXusdAmount);
+    event Unwrap(address asset, uint256 amount, address receiver, uint256 unwrappedXusdAmount);
 
     // ---  initializer
 
@@ -44,12 +44,12 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
 
     // ---  remoteHub getters
 
-    function usdx() internal view returns(IUsdxToken) {
-        return remoteHub.usdx();
+    function xusd() internal view returns(IXusdToken) {
+        return remoteHub.xusd();
     }
 
-    function wrappedUsdx() internal view returns(IWrappedUsdxToken) {
-        return remoteHub.wusdx();
+    function wrappedXusd() internal view returns(IWrappedXusdToken) {
+        return remoteHub.wxusd();
     }
 
     function exchange() internal view returns(IExchange) {
@@ -80,7 +80,7 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
     // --- logic
 
     /**
-     * @dev preview wrap `amount` of `asset` to wUSDx.
+     * @dev preview wrap `amount` of `asset` to wxUSD.
      *
      * This is an estimate amount, real amount may vary.
      *
@@ -95,16 +95,16 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
 
         if (asset == address(usdcToken)) {
             uint256 buyFeeAmount = (amount * exchange().buyFee()) / exchange().buyFeeDenominator();
-            return wrappedUsdx().previewDeposit(amount - buyFeeAmount);
-        } else if (asset == address(usdx())) {
-            return wrappedUsdx().previewDeposit(amount);
+            return wrappedXusd().previewDeposit(amount - buyFeeAmount);
+        } else if (asset == address(xusd())) {
+            return wrappedXusd().previewDeposit(amount);
         } else {
             revert('Asset not found');
         }
     }
 
     /**
-     * @dev preview unwrap `amount` of wUSDx to `asset`.
+     * @dev preview unwrap `amount` of wxUSD to `asset`.
      *
      * This is an estimate amount, real amount may vary.
      *
@@ -118,18 +118,18 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
         require(amount != 0, "Zero amount not allowed");
 
         if (asset == address(usdcToken)) {
-            uint256 usdxAmount = wrappedUsdx().previewRedeem(amount);
-            uint256 redeemFeeAmount = (usdxAmount * exchange().redeemFee()) / exchange().redeemFeeDenominator();
-            return usdxAmount - redeemFeeAmount;
-        } else if (asset == address(usdx())) {
-            return wrappedUsdx().previewRedeem(amount);
+            uint256 xusdAmount = wrappedXusd().previewRedeem(amount);
+            uint256 redeemFeeAmount = (xusdAmount * exchange().redeemFee()) / exchange().redeemFeeDenominator();
+            return xusdAmount - redeemFeeAmount;
+        } else if (asset == address(xusd())) {
+            return wrappedXusd().previewRedeem(amount);
         } else {
             revert('Asset not found');
         }
     }
 
     /**
-     * @dev Wrap `amount` of `asset` from `msg.sender` to wUSDx of `receiver`.
+     * @dev Wrap `amount` of `asset` from `msg.sender` to wxUSD of `receiver`.
      *
      * Emits a {Wrap} event.
      *
@@ -144,33 +144,33 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
         require(amount != 0, "Zero amount not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
-        uint256 wrappedUsdxAmount;
+        uint256 wrappedXusdAmount;
         if (asset == address(usdcToken)) {
             usdcToken.transferFrom(msg.sender, address(this), amount);
 
             usdcToken.approve(address(exchange()), amount);
-            uint256 usdxAmount = exchange().buy(asset, amount);
+            uint256 xusdAmount = exchange().buy(asset, amount);
 
-            usdx().approve(address(wrappedUsdx()), usdxAmount);
-            wrappedUsdxAmount = wrappedUsdx().deposit(usdxAmount, receiver);
+            xusd().approve(address(wrappedXusd()), xusdAmount);
+            wrappedXusdAmount = wrappedXusd().deposit(xusdAmount, receiver);
 
-        } else if (asset == address(usdx())) {
-            usdx().transferFrom(msg.sender, address(this), amount);
+        } else if (asset == address(xusd())) {
+            xusd().transferFrom(msg.sender, address(this), amount);
 
-            usdx().approve(address(wrappedUsdx()), amount);
-            wrappedUsdxAmount = wrappedUsdx().deposit(amount, receiver);
+            xusd().approve(address(wrappedXusd()), amount);
+            wrappedXusdAmount = wrappedXusd().deposit(amount, receiver);
 
         } else {
             revert('Asset not found');
         }
 
-        emit Wrap(asset, amount, receiver, wrappedUsdxAmount);
+        emit Wrap(asset, amount, receiver, wrappedXusdAmount);
 
-        return wrappedUsdxAmount;
+        return wrappedXusdAmount;
     }
 
     /**
-     * @dev Unwrap `amount` of wUSDx from `msg.sender` to `asset` of `receiver`.
+     * @dev Unwrap `amount` of wxUSD from `msg.sender` to `asset` of `receiver`.
      *
      * Emits a {Unwrap} event.
      *
@@ -185,31 +185,31 @@ contract MarketTest is IMarket, Initializable, AccessControlUpgradeable, UUPSUpg
         require(amount != 0, "Zero amount not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
-        uint256 unwrappedUsdxAmount;
+        uint256 unwrappedXusdAmount;
         if (asset == address(usdcToken)) {
-            wrappedUsdx().transferFrom(msg.sender, address(this), amount);
+            wrappedXusd().transferFrom(msg.sender, address(this), amount);
 
-            wrappedUsdx().approve(address(wrappedUsdx()), amount);
-            uint256 usdxAmount = wrappedUsdx().redeem(amount, address(this), address(this));
+            wrappedXusd().approve(address(wrappedXusd()), amount);
+            uint256 xusdAmount = wrappedXusd().redeem(amount, address(this), address(this));
 
-            usdx().approve(address(exchange()), usdxAmount);
-            unwrappedUsdxAmount = exchange().redeem(asset, usdxAmount);
+            xusd().approve(address(exchange()), xusdAmount);
+            unwrappedXusdAmount = exchange().redeem(asset, xusdAmount);
 
-            usdcToken.transfer(receiver, unwrappedUsdxAmount);
+            usdcToken.transfer(receiver, unwrappedXusdAmount);
 
-        } else if (asset == address(usdx())) {
-            wrappedUsdx().transferFrom(msg.sender, address(this), amount);
+        } else if (asset == address(xusd())) {
+            wrappedXusd().transferFrom(msg.sender, address(this), amount);
 
-            wrappedUsdx().approve(address(wrappedUsdx()), amount);
-            unwrappedUsdxAmount = wrappedUsdx().redeem(amount, receiver, address(this));
+            wrappedXusd().approve(address(wrappedXusd()), amount);
+            unwrappedXusdAmount = wrappedXusd().redeem(amount, receiver, address(this));
 
         } else {
             revert('Asset not found');
         }
 
-        emit Unwrap(asset, amount, receiver, unwrappedUsdxAmount);
+        emit Unwrap(asset, amount, receiver, unwrappedXusdAmount);
 
-        return unwrappedUsdxAmount;
+        return unwrappedXusdAmount;
     }
 
     // --- testing

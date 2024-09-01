@@ -46,8 +46,8 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     // ---  remoteHub getters
 
-    function usdx() internal view returns(IUsdxToken) {
-        return remoteHub.usdx();
+    function xusd() internal view returns(IXusdToken) {
+        return remoteHub.xusd();
     }
     
     function roleManager() internal view returns(IRoleManager) {
@@ -85,15 +85,15 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         require(_isUnit() || payoutDeadline >= block.timestamp, "You are not Unit or timestamp is not ready.");
 
         require(newDelta > LIQ_DELTA_DM, "Negative rebase");
-        uint256 totalNav = usdx().totalSupply() * newDelta / LIQ_DELTA_DM;
-        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = usdx().changeSupply(totalNav);
+        uint256 totalNav = xusd().totalSupply() * newDelta / LIQ_DELTA_DM;
+        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = xusd().changeSupply(totalNav);
 
         if (nonRebaseDelta > 0) {
-            usdx().mint(address(payoutManager()), nonRebaseDelta);
-            payoutManager().payoutDone(address(usdx()), nonRebaseInfo);
+            xusd().mint(address(payoutManager()), nonRebaseDelta);
+            payoutManager().payoutDone(address(xusd()), nonRebaseInfo);
         }
 
-        require(usdx().totalSupply() == totalNav,'total != nav');
+        require(xusd().totalSupply() == totalNav,'total != nav');
         
         newDelta = 0;
 

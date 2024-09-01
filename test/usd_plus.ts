@@ -16,8 +16,8 @@ describe("MyToken", function () {
   let nonRebaseUser2:any;
 
   beforeEach(async function () {
-    const MyToken = await ethers.getContractFactory("UsdxToken");
-    usdPlus = await upgrades.deployProxy(MyToken, ["USDx", "USDx", 6, "0x0000000000000000000000000000000000000000"], { initializer: 'initialize' });
+    const MyToken = await ethers.getContractFactory("XusdToken");
+    usdPlus = await upgrades.deployProxy(MyToken, ["xUSD", "xUSD", 6, "0x0000000000000000000000000000000000000000"], { initializer: 'initialize' });
 
     const [deployerSigner, otherSigner, otherSigner2, otherSigner3] = await ethers.getSigners();
     account = deployerSigner.address;
@@ -54,8 +54,8 @@ describe("MyToken", function () {
   });
 
   it("Should return the token name and symbol", async () => {
-      expect(await usdPlus.name()).to.equal("USDx");
-      expect(await usdPlus.symbol()).to.equal("USDx");
+      expect(await usdPlus.name()).to.equal("xUSD");
+      expect(await usdPlus.symbol()).to.equal("xUSD");
   });
 
   it("Should have 6 decimals", async () => {

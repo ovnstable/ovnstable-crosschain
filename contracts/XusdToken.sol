@@ -19,7 +19,7 @@ import "hardhat/console.sol";
 // Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
-contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -78,8 +78,12 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     // method only for redeploy, will be removed after
     function renaming(uint256 value) public {
-        _rebasingCreditsPerToken = value;
-    } 
+        if (value != 0) {
+            _rebasingCreditsPerToken = value;
+        }
+        _name = "xUSD";
+        _symbol = "xUSD";
+    }
 
     // ---  initializer
 
@@ -115,8 +119,8 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         return remoteHub.exchange();
     }
 
-    function wUsdx() internal view returns(IWrappedUsdxToken) {
-        return remoteHub.wusdx();
+    function wXusd() internal view returns(IWrappedXusdToken) {
+        return remoteHub.wxusd();
     }
 
     // ---  modifiers
@@ -149,7 +153,7 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     modifier onlyExchangerOrWrapper() {
-        require(address(exchange()) == _msgSender() || address(remoteHub.wusdx()) == _msgSender(), "Caller is not the EXCHANGER or WRAPPER");
+        require(address(exchange()) == _msgSender() || address(remoteHub.wxusd()) == _msgSender(), "Caller is not the EXCHANGER or WRAPPER");
         _;
     }
 
@@ -221,7 +225,7 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @return The total supply of USDx.
+     * @return The total supply of xUSD.
      */
     function totalSupply() public view override returns (uint256) {
         return _totalSupply;
@@ -311,9 +315,9 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Converts USDx balance value to credits
+     * @dev Converts xUSD balance value to credits
      * @param owner The address which owns the funds.
-     * @param amount The amount for conversion in USDx
+     * @param amount The amount for conversion in xUSD
      * @return credit The number of tokens in credits
      */
     function assetToCredit(address owner, uint256 amount) public view returns(uint256 credit) {
@@ -327,7 +331,7 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Converts credits balance value to USDx
+     * @dev Converts credits balance value to xUSD
      * @param owner The address which owns the funds.
      * @param credit The amount for conversion in credits
      * @return asset The number of tokens in credits
@@ -387,7 +391,7 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @dev Update the count of non rebasing credits in response to a transfer
      * @param _from The address you want to send tokens from.
      * @param _to The address you want to transfer to.
-     * @param _value Amount of USDx to transfer
+     * @param _value Amount of xUSD to transfer
      */
     function _executeTransfer(address _from, address _to, uint256 _value) internal {
 
@@ -642,8 +646,8 @@ contract UsdxToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     /**
      * @dev Modify the supply without minting new tokens. This uses a change in
-     *      the exchange rate between "credits" and USDx tokens to change balances.
-     * @param _newTotalSupply New total supply of USDx.
+     *      the exchange rate between "credits" and xUSD tokens to change balances.
+     * @param _newTotalSupply New total supply of xUSD.
      */
     function changeSupply(uint256 _newTotalSupply) external onlyExchanger nonReentrant whenNotPaused returns (NonRebaseInfo [] memory, uint256) {
         console.log("changeSupply", _totalSupply);

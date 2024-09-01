@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./interfaces/IRoleManager.sol";
 
 /**
- * @dev Manager role for all contracts of USDx
+ * @dev Manager role for all contracts of xUSD
  * Single point for assigning roles
  * Allow to set role in this place and this will be available for other contracts
  */

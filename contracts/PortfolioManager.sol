@@ -11,6 +11,7 @@ import "@overnight-contracts/common/contracts/libraries/OvnMath.sol";
 import "./interfaces/IPortfolioManager.sol";
 import "./interfaces/IStrategy.sol";
 import "./interfaces/IRemoteHub.sol";
+import "hardhat/console.sol";
 
 contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgradeable, UUPSUpgradeable {
 
@@ -48,6 +49,14 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         bool enabled,
         bool enabledReward
     );
+
+    // ---  for deploy
+
+    // method only for redeploy, will be removed after
+    function renaming() public {
+        totalRiskFactor = 7500;
+        navSlippageBp = 4;
+    }
 
     // ---  initializer
 
@@ -376,7 +385,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         // 1) transferring from one strategy to another
         // 2) when execute stake/unstake
 
-        // allowable losses 0.04% = USDx mint/redeem fee
+        // allowable losses 0.04% = xUSD mint/redeem fee
         uint256 minNavExpected = OvnMath.subBasisPoints(totalNetAssets(), navSlippageBp);
         minNavExpected = minNavExpected - withdrawAmount; // subscribe withdraw amount
 

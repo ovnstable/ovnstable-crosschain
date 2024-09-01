@@ -172,7 +172,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
 
         if (isNew) {
             items.push(item);
-            IUsdxToken(item.token).rebaseOptOut(item.pool);
+            IXusdToken(item.token).rebaseOptOut(item.pool);
         }
 
         emit AddItem(item.token, item.pool);
@@ -204,7 +204,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
                     items[i] = tempItem;
                 }
                 items.pop();
-                IUsdxToken(token).rebaseOptIn(pool);
+                IXusdToken(token).rebaseOptIn(pool);
                 emit RemoveItem(token, pool);
                 return;
             }
@@ -221,12 +221,12 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         for (uint256 x = 0; x < length; x++) {
             Item memory item = items[length - x - 1];
             items.pop();
-            IUsdxToken(item.token).rebaseOptIn(item.pool);
+            IXusdToken(item.token).rebaseOptIn(item.pool);
         }
     }
 
     /**
-     * This function executing in payout after increase/decrease liquidity index for USDx token
+     * This function executing in payout after increase/decrease liquidity index for xUSD token
      * see details: Exchange.sol
      */
     function payoutDone(address token, NonRebaseInfo [] memory nonRebaseInfo) external virtual override onlyExchanger {

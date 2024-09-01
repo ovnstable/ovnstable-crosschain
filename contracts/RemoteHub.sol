@@ -99,7 +99,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         chainSelector = _chainSelector;
-        ccipGasLimit = 300_000;
+        ccipGasLimit = 500_000;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -116,8 +116,8 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         return chainItemById[chainSelector].ccipPool;
     }
 
-    function usdx() public view returns(IUsdxToken) {
-        return IUsdxToken(chainItemById[chainSelector].usdx);
+    function xusd() public view returns(IXusdToken) {
+        return IXusdToken(chainItemById[chainSelector].xusd);
     }
 
     function exchange() public view returns(IExchange) {
@@ -140,8 +140,8 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         return IRemoteHubUpgrader(chainItemById[chainSelector].remoteHubUpgrader);
     }
 
-    function wusdx() public view returns(IWrappedUsdxToken) {
-        return IWrappedUsdxToken(chainItemById[chainSelector].wusdx);
+    function wxusd() public view returns(IWrappedXusdToken) {
+        return IWrappedXusdToken(chainItemById[chainSelector].wxusd);
     }
 
     function market() public view returns(IMarket) {
@@ -176,7 +176,9 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     modifier onlyAdmin() {
+        console.log("tuta111");
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+        console.log("tuta11133");
         _;
     }
 
@@ -393,25 +395,25 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
 
     function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused payable public {
 
-        usdx().transferFrom(msg.sender, address(this), _amount);
-        usdx().approve(address(chainItemById[chainSelector].market), usdx().balanceOf(address(this)));
-        IMarket(chainItemById[chainSelector].market).wrap(address(usdx()), usdx().balanceOf(address(this)), address(this)); 
+        xusd().transferFrom(msg.sender, address(this), _amount);
+        xusd().approve(address(chainItemById[chainSelector].market), xusd().balanceOf(address(this)));
+        IMarket(chainItemById[chainSelector].market).wrap(address(xusd()), xusd().balanceOf(address(this)), address(this)); 
 
         DataCallItem[] memory dataCallItems = new DataCallItem[](2);
         dataCallItems[0] = DataCallItem({
-            executor: chainItemById[_destinationChainSelector].wusdx,
-            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wusdx().balanceOf(address(this)))
+            executor: chainItemById[_destinationChainSelector].wxusd,
+            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wxusd().balanceOf(address(this)))
         });
         dataCallItems[1] = DataCallItem({
             executor: chainItemById[_destinationChainSelector].market,
-            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].usdx, wusdx().balanceOf(address(this)), _to)
+            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, wxusd().balanceOf(address(this)), _to)
         });
 
         MultichainCallItem memory multichainCallItem = MultichainCallItem({
                 chainSelector: _destinationChainSelector,
                 receiver: chainItemById[_destinationChainSelector].remoteHub,
-                token: chainItemById[chainSelector].wusdx,
-                amount: wusdx().balanceOf(address(this)),
+                token: chainItemById[chainSelector].wxusd,
+                amount: wxusd().balanceOf(address(this)),
                 batchData: dataCallItems
             });
 

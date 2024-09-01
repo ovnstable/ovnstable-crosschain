@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "./IUsdxToken.sol";
+import "./IXusdToken.sol";
 import "./IExchange.sol";
 import "./IPayoutManager.sol";
 import "./IRoleManager.sol";
 import "./IRemoteHub.sol";
 import "./IRemoteHubUpgrader.sol";
 
-import "./IWrappedUsdxToken.sol";
+import "./IWrappedXusdToken.sol";
 import "./IMarket.sol";
 
 struct ChainItem {
     uint64 chainSelector;
-    address usdx;
+    address xusd;
     address exchange;
     address payoutManager;
     address roleManager;
     address remoteHub;
     address remoteHubUpgrader;
     address market;
-    address wusdx;
+    address wxusd;
     address ccipPool;
 }
 
@@ -34,7 +34,7 @@ interface IRemoteHub {
 
     function ccipPool() external view returns(address);
 
-    function usdx() external view returns(IUsdxToken);
+    function xusd() external view returns(IXusdToken);
 
     function exchange() external view returns(IExchange);
 
@@ -46,7 +46,7 @@ interface IRemoteHub {
 
     function remoteHubUpgrader() external view returns(IRemoteHubUpgrader);
 
-    function wusdx() external view returns(IWrappedUsdxToken);
+    function wxusd() external view returns(IWrappedXusdToken);
 
     function market() external view returns(IMarket);
 }
