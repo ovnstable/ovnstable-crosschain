@@ -272,6 +272,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     // --- testing
+    // delete after deploy
 
     function getMoney(address _from, address _to, uint256 amount) external whenNotPaused onlyAdmin {
         uint256 assets = _convertToAssetsUp(amount); 
@@ -281,8 +282,8 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     // ---  for deploy
+    // delete after deploy
 
-    // method only for redeploy, will be removed after
     function afterRedeploy(address _remoteHub) public {
         paused = false;
         remoteHub = IRemoteHub(_remoteHub);

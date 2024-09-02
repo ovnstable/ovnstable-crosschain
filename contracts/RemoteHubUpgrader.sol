@@ -96,7 +96,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        ccipGasLimit = 200_000;
+        ccipGasLimit = 500_000;
     }
 
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
@@ -252,6 +252,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     }
 
     // --- testing
+    // delete after deploy
 
     function checkUpgrading() public pure returns(bool) {
         return false;

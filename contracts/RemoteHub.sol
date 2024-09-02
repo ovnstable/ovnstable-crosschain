@@ -362,6 +362,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             } else if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver == address(this)) {
                 for (uint j = 0; j < multichainCallItems[i].batchData.length; j++) {
                     (bool success, bytes memory data) = multichainCallItems[i].batchData[j].executor.call(multichainCallItems[i].batchData[j].data);
+                    require(success, "Call failed");
                     emit CallExecuted(address(this), success, data);
                 }
             } else {
@@ -417,6 +418,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     // --- testing
+    // delete after deploy
 
     function checkUpgrading() public pure returns(bool) {
         return false;

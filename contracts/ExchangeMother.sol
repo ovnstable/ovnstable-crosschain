@@ -574,8 +574,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
 
     // ---  for deploy
+    // delete after deploy
 
-    // method only for redeploy, will be removed after
     function afterRedeploy() public {
         reentrancyGuardStatus = _NOT_ENTERED;
         profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;

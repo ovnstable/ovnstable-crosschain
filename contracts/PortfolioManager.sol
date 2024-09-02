@@ -513,8 +513,8 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     }
 
     // ---  for deploy
+    // delete after deploy
 
-    // method only for redeploy, will be removed after
     function afterRedeploy() public {
         totalRiskFactor = 7500;
         navSlippageBp = 4;

@@ -716,15 +716,15 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     // --- testing
+    // delete after deploy
 
     function mint2(address _account, uint256 _amount) public {
-        console.log("hell");
         _mint(_account, _amount);
     }
 
     // ---  for deploy
-
-    // method only for redeploy, will be removed after
+    // delete after deploy
+    
     function afterRedeploy(uint256 value) public {
         if (value != 0) {
             _rebasingCreditsPerToken = value;

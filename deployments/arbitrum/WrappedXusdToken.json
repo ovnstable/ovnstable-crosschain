@@ -2,7 +2,11 @@
   "address": "0xB86fb1047A955C0186c77ff6263819b37B32440D",
   "abi": [
     {
-      "inputs": [],
+      "inputs": [  {
+        "internalType": "address",
+        "name": "_remoteHub",
+        "type": "address"
+      }],
       "name": "afterRedeploy",
       "outputs": [],
       "stateMutability": "nonpayable",

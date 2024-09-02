@@ -51,7 +51,7 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 226076577, //248538793, // payout: 226076577 
+        BLOCK_NUMBER: 249265030, //248538793, // payout: 226076577 
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: 4949039107694359620n,
         ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
@@ -60,7 +60,7 @@ const chain = [
     {
         NAME: "OPTIMISM",
         RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: 124448997,
+        BLOCK_NUMBER: 124835124,
         ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
         chainSelector: 3734403246176062136n,
         ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
@@ -69,7 +69,7 @@ const chain = [
     {
         NAME: "ETHEREUM",
         RPC_URL: process.env.ETHEREUM_RPC,
-        BLOCK_NUMBER: 20598086,
+        BLOCK_NUMBER: 20661968,
         ccipRouterAddress: "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
         chainSelector: 5009297550715157269n,
         ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c",
@@ -662,23 +662,23 @@ async function main() {
 
     await initAllAddresses();
 
-    // await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2); // works
-    await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2); // works
+    await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
+    // await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2);
     
-    // expect(await upgradeTest("Market", "remote")).to.equal(true); // works
-    // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true); // works
-    // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true); // works
+    // expect(await upgradeTest("Market", "remote")).to.equal(true);
+    // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
+    // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
 
     // expect(await upgradeTest("Market", "local")).to.equal(true);
-    // expect(await upgradeTest("RemoteHub", "local")).to.equal(true); // works
-    // expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true); // works
+    // expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
+    // expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
 
-    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true); // works
-    // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true); // works (need to uncomment)
-    // expect(await transferTest(ChainType.DESTINATION, ChainType.DESTINATION2)).to.equal(true); // works
+    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
+    // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
+    // expect(await transferTest(ChainType.DESTINATION, ChainType.DESTINATION2)).to.equal(true);
 }
 
 main().catch((error) => {
-    console.error("000", error);
+    console.error(error);
     process.exitCode = 1;
 });
