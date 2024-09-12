@@ -327,13 +327,13 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     function strategyAssets() public view override returns (StrategyAsset[] memory) {
 
-        IPortfolioManager.StrategyWeight[] memory weights = getAllStrategyWeights();
+        StrategyWeight[] memory weights = getAllStrategyWeights();
         uint256 count = weights.length;
 
         StrategyAsset[] memory assets = new StrategyAsset[](count);
 
         for (uint8 i = 0; i < count; i++) {
-            IPortfolioManager.StrategyWeight memory weight = weights[i];
+            StrategyWeight memory weight = weights[i];
             IStrategy strategy = IStrategy(weight.strategy);
 
             assets[i] = StrategyAsset(
@@ -498,7 +498,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     function _totalAssets(bool liquidation) internal view returns (uint256) {
         uint256 totalAssetPrice = 0;
-        IPortfolioManager.StrategyWeight[] memory weights = getAllStrategyWeights();
+        StrategyWeight[] memory weights = getAllStrategyWeights();
 
         for (uint8 i = 0; i < weights.length; i++) {
             IStrategy strategy = IStrategy(weights[i].strategy);
