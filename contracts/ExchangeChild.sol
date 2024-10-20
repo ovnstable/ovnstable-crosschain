@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager} from "./interfaces/IRemoteHub.sol";
-import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
+import { IRemoteHub, IXusdToken, IPayoutManager, IRoleManager } from "./interfaces/IRemoteHub.sol";
+import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
 
 contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
-
     uint256 public constant LIQ_DELTA_DM = 1e6;
 
     uint256 public newDelta;
@@ -31,12 +30,12 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
     constructor() {
         _disableInitializers();
     }
-    
-    function UPGRADER_ROLE() public pure returns(bytes32) {
+
+    function UPGRADER_ROLE() public pure returns (bytes32) {
         return keccak256("UPGRADER_ROLE");
     }
 
-    function initialize(address _remoteHub) initializer public {
+    function initialize(address _remoteHub) public initializer {
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
@@ -47,19 +46,19 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
 
     // ---  remoteHub getters
 
-    function xusd() internal view returns(IXusdToken) {
+    function xusd() internal view returns (IXusdToken) {
         return remoteHub.xusd();
     }
-    
-    function roleManager() internal view returns(IRoleManager) {
+
+    function roleManager() internal view returns (IRoleManager) {
         return remoteHub.roleManager();
     }
 
-    function payoutManager() internal view returns(IPayoutManager) {
+    function payoutManager() internal view returns (IPayoutManager) {
         return remoteHub.payoutManager();
     }
 
@@ -98,16 +97,16 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         IXusdToken _xusd = xusd();
         IPayoutManager _payoutManager = payoutManager();
 
-        uint256 totalNav = _xusd.totalSupply() * newDelta / LIQ_DELTA_DM;
-        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = _xusd.changeSupply(totalNav);
+        uint256 totalNav = (_xusd.totalSupply() * newDelta) / LIQ_DELTA_DM;
+        (NonRebaseInfo[] memory nonRebaseInfo, uint256 nonRebaseDelta) = _xusd.changeSupply(totalNav);
 
         if (nonRebaseDelta > 0) {
             _xusd.mint(address(_payoutManager), nonRebaseDelta);
             _payoutManager.payoutDone(address(_xusd), nonRebaseInfo);
         }
 
-        require(_xusd.totalSupply() == totalNav,'total != nav');
-        
+        require(_xusd.totalSupply() == totalNav, "total != nav");
+
         newDelta = 0;
 
         emit PayoutShortEvent(newDelta, nonRebaseDelta);
@@ -115,7 +114,7 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     function payout(uint256 _newDelta) external onlyUpgrader {
         require(_newDelta > LIQ_DELTA_DM, "Negative rebase");
-        
+
         newDelta = _newDelta;
         payoutDeadline = block.timestamp + payoutDelta;
 

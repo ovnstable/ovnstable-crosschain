@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
-import {NonRebaseInfo} from "./IPayoutManager.sol";
+import { NonRebaseInfo } from "./IPayoutManager.sol";
 
 interface IXusdToken {
-
     function liquidityIndex() external view returns (uint256);
 
     function setLiquidityIndex(uint256 _liquidityIndex) external;
@@ -104,7 +103,7 @@ interface IXusdToken {
     function ownerBalanceAt(uint256 index) external view returns (uint256);
 
     /**
-   * @dev Returns the name of the token.
+     * @dev Returns the name of the token.
      */
     function name() external view returns (string memory);
 
@@ -115,7 +114,7 @@ interface IXusdToken {
     function symbol() external view returns (string memory);
 
     /**
-   * @dev Returns the number of decimals used to get its user representation.
+     * @dev Returns the number of decimals used to get its user representation.
      * For example, if `decimals` equals `2`, a balance of `505` tokens should
      * be displayed to a user as `5.05` (`505 / 10 ** 2`).
      *
@@ -133,10 +132,9 @@ interface IXusdToken {
 
     function rebaseOptOut(address _address) external;
 
-    function changeSupply(uint256 _newTotalSupply) external returns (NonRebaseInfo [] memory, uint256);
+    function changeSupply(uint256 _newTotalSupply) external returns (NonRebaseInfo[] memory, uint256);
 
     function rebasingCreditsPerTokenHighres() external view returns (uint256);
 
     function isPaused() external view returns (bool);
-
 }

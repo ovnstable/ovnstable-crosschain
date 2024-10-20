@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {PausableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { IERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import { IERC20MetadataUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { PausableUpgradeable, ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
-import {IRoleManager} from "./interfaces/IRoleManager.sol";
-import {IRemoteHub, IExchange} from "./interfaces/IRemoteHub.sol";
-import {WadRayMath} from "./libraries/WadRayMath.sol";
+import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
+import { IRoleManager } from "./interfaces/IRoleManager.sol";
+import { IRemoteHub, IExchange } from "./interfaces/IRemoteHub.sol";
+import { WadRayMath } from "./libraries/WadRayMath.sol";
 
 // Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
-contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC20MetadataUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
-
+contract XusdToken is
+    Initializable,
+    ContextUpgradeable,
+    IERC20Upgradeable,
+    IERC20MetadataUpgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable
+{
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 private constant MAX_SUPPLY = type(uint256).max;
@@ -51,7 +57,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     EnumerableSet.AddressSet private _owners;
 
-    address private DELETED_3; 
+    address private DELETED_3;
 
     uint8 private _decimals;
 
@@ -67,11 +73,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     event RemoteHubUpdated(address remoteHub);
 
-    event TotalSupplyUpdatedHighres(
-        uint256 totalSupply,
-        uint256 rebasingCredits,
-        uint256 rebasingCreditsPerToken
-    );
+    event TotalSupplyUpdatedHighres(uint256 totalSupply, uint256 rebasingCredits, uint256 rebasingCreditsPerToken);
     event Paused();
     event Unpaused();
     error ErrorInSubCredits(string error);
@@ -83,7 +85,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         _disableInitializers();
     }
 
-    function UPGRADER_ROLE() public pure returns(bytes32) {
+    function UPGRADER_ROLE() public pure returns (bytes32) {
         return keccak256("UPGRADER_ROLE");
     }
 
@@ -92,7 +94,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     /// @param __symbol The symbol of the token
     /// @param __decimals The number of decimals for the token
     /// @param __remoteHub The address of the remote hub
-    function initialize(string calldata __name, string calldata __symbol, uint8 __decimals, address __remoteHub) initializer public {
+    function initialize(
+        string calldata __name,
+        string calldata __symbol,
+        uint8 __decimals,
+        address __remoteHub
+    ) public initializer {
         __Context_init_unchained();
         _name = __name;
         _symbol = __symbol;
@@ -108,15 +115,15 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         remoteHub = IRemoteHub(__remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
 
     // ---  remoteHub getters
 
-    function roleManager() internal view returns(IRoleManager) {
+    function roleManager() internal view returns (IRoleManager) {
         return remoteHub.roleManager();
     }
 
-    function exchange() internal view returns(IExchange) {
+    function exchange() internal view returns (IExchange) {
         return remoteHub.exchange();
     }
 
@@ -140,7 +147,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     // }
 
     modifier onlyPortfolioAgent() {
-        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        require(
+            roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender),
+            "Caller doesn't have PORTFOLIO_AGENT_ROLE role"
+        );
         _;
     }
 
@@ -196,7 +206,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         return _symbol;
     }
 
-    function decimals() public virtual view returns (uint8) {
+    function decimals() public view virtual returns (uint8) {
         return _decimals;
     }
 
@@ -217,7 +227,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     function totalSupplyOwners() external view returns (uint256) {
-
         uint256 owners = this.ownerLength();
 
         uint256 total = 0;
@@ -324,7 +333,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @param amount The amount for conversion in xUSD
      * @return credit The number of tokens in credits
      */
-    function assetToCredit(address owner, uint256 amount) public view returns(uint256 credit) {
+    function assetToCredit(address owner, uint256 amount) public view returns (uint256 credit) {
         if (amount > MAX_SUPPLY / 10 ** 45) {
             return MAX_SUPPLY;
         }
@@ -340,7 +349,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @param credit The amount for conversion in credits
      * @return asset The number of tokens in xUSD
      */
-    function creditToAsset(address owner, uint256 credit) public view returns(uint256 asset) {
+    function creditToAsset(address owner, uint256 credit) public view returns (uint256 asset) {
         if (credit >= MAX_SUPPLY / 10 ** 36) {
             return MAX_SUPPLY;
         }
@@ -358,7 +367,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @param errorText Text for error if the subtrahend is much greater than the minuend
      * @return resultCredit The resulting number of tokens in credits
      */
-    function subCredits(address owner, uint256 credit1, uint256 credit2, string memory errorText) public view returns(uint256 resultCredit) {
+    function subCredits(
+        address owner,
+        uint256 credit1,
+        uint256 credit2,
+        string memory errorText
+    ) public view returns (uint256 resultCredit) {
         uint256 amount1 = creditToAsset(owner, credit1);
         uint256 amount2 = creditToAsset(owner, credit2);
         if (amount1 == MAX_SUPPLY || amount1 + 1 >= amount2) {
@@ -381,7 +395,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
         uint256 scaledAmount = assetToCredit(_from, _value);
 
-        _allowances[_from][msg.sender] = subCredits(_from, _allowances[_from][msg.sender], scaledAmount, "Allowance amount exceeds balance");
+        _allowances[_from][msg.sender] = subCredits(
+            _from,
+            _allowances[_from][msg.sender],
+            scaledAmount,
+            "Allowance amount exceeds balance"
+        );
 
         _executeTransfer(_from, _to, _value);
 
@@ -397,7 +416,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @param _value Amount of xUSD to transfer
      */
     function _executeTransfer(address _from, address _to, uint256 _value) internal {
-
         _beforeTokenTransfer(_from, _to, _value);
 
         bool isNonRebasingTo = _isNonRebasingAccount(_to);
@@ -473,11 +491,11 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @param _subtractedValue The amount of tokens to decrease the allowance by
      * @return bool true on success
      */
-    function decreaseAllowance(address _spender, uint256 _subtractedValue) public whenNotPaused
-        returns (bool)
-    {
+    function decreaseAllowance(address _spender, uint256 _subtractedValue) public whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _subtractedValue);
-        _allowances[msg.sender][_spender] = (_allowances[msg.sender][_spender] >= scaledAmount) ? _allowances[msg.sender][_spender] - scaledAmount: 0;
+        _allowances[msg.sender][_spender] = (_allowances[msg.sender][_spender] >= scaledAmount)
+            ? _allowances[msg.sender][_spender] - scaledAmount
+            : 0;
         emit Approval(msg.sender, _spender, _allowances[msg.sender][_spender]);
         return true;
     }
@@ -600,7 +618,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         require(_isNonRebasingAccount(_address), "Account has not opted out");
 
         // Convert balance into the same amount at the current exchange rate
-        uint256 newCreditBalance = _creditBalances[_address] * _rebasingCreditsPerToken / _creditsPerToken(_address);
+        uint256 newCreditBalance = (_creditBalances[_address] * _rebasingCreditsPerToken) / _creditsPerToken(_address);
 
         // Decreasing non rebasing supply
         nonRebasingSupply = nonRebasingSupply - balanceOf(_address);
@@ -647,49 +665,41 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
      * @return NonRebaseInfo[] Array of non-rebasing account information
      * @return uint256 Total amount of non-rebasing delta
      */
-    function changeSupply(uint256 _newTotalSupply) external onlyExchanger nonReentrant whenNotPaused returns (NonRebaseInfo [] memory, uint256) {
+    function changeSupply(
+        uint256 _newTotalSupply
+    ) external onlyExchanger nonReentrant whenNotPaused returns (NonRebaseInfo[] memory, uint256) {
         require(_totalSupply > 0, "Cannot increase 0 supply");
-        require(_newTotalSupply >= _totalSupply, 'negative rebase');
+        require(_newTotalSupply >= _totalSupply, "negative rebase");
 
         if (_totalSupply == _newTotalSupply) {
-            emit TotalSupplyUpdatedHighres(
-                _totalSupply,
-                _rebasingCredits,
-                _rebasingCreditsPerToken
-            );
+            emit TotalSupplyUpdatedHighres(_totalSupply, _rebasingCredits, _rebasingCreditsPerToken);
             return (new NonRebaseInfo[](0), 0);
         }
 
         uint256 delta = _newTotalSupply - _totalSupply;
-        uint256 deltaNR = delta * nonRebasingSupply / _totalSupply;
+        uint256 deltaNR = (delta * nonRebasingSupply) / _totalSupply;
         uint256 deltaR = delta - deltaNR;
 
-        _totalSupply = _totalSupply + deltaR > MAX_SUPPLY
-            ? MAX_SUPPLY
-            : _totalSupply + deltaR;
+        _totalSupply = _totalSupply + deltaR > MAX_SUPPLY ? MAX_SUPPLY : _totalSupply + deltaR;
 
         if (_totalSupply - nonRebasingSupply != 0) {
-            _rebasingCreditsPerToken = _rebasingCredits * 1e18 / (_totalSupply - nonRebasingSupply);
+            _rebasingCreditsPerToken = (_rebasingCredits * 1e18) / (_totalSupply - nonRebasingSupply);
         }
 
         require(_rebasingCreditsPerToken > 0, "Invalid change in supply");
 
-        _totalSupply = _rebasingCredits * 1e18 / _rebasingCreditsPerToken + nonRebasingSupply;
+        _totalSupply = (_rebasingCredits * 1e18) / _rebasingCreditsPerToken + nonRebasingSupply;
 
-        NonRebaseInfo [] memory nonRebaseInfo = new NonRebaseInfo[](_nonRebaseOwners.length());
+        NonRebaseInfo[] memory nonRebaseInfo = new NonRebaseInfo[](_nonRebaseOwners.length());
         for (uint256 i = 0; i < nonRebaseInfo.length; ++i) {
             address userAddress = _nonRebaseOwners.at(i);
             uint256 userBalance = balanceOf(userAddress);
-            uint256 userPart = (nonRebasingSupply != 0) ? userBalance * deltaNR / nonRebasingSupply : 0;
+            uint256 userPart = (nonRebasingSupply != 0) ? (userBalance * deltaNR) / nonRebasingSupply : 0;
             nonRebaseInfo[i].pool = userAddress;
             nonRebaseInfo[i].amount = userPart;
         }
 
-        emit TotalSupplyUpdatedHighres(
-            _totalSupply,
-            _rebasingCredits,
-            _rebasingCreditsPerToken
-        );
+        emit TotalSupplyUpdatedHighres(_totalSupply, _rebasingCredits, _rebasingCreditsPerToken);
 
         return (nonRebaseInfo, deltaNR);
     }
@@ -697,7 +707,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal {}
 
     function _afterTokenTransfer(address from, address to, uint256 amount) internal {
-
         if (from == to) {
             return;
         }
@@ -723,7 +732,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     // ---  for deploy
     // delete after deploy
-    
+
     function afterRedeploy(uint256 value) public onlyPortfolioAgent {
         if (value != 0) {
             _rebasingCreditsPerToken = value;

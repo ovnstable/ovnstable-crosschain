@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {WadRayMath} from "./libraries/WadRayMath.sol";
-import {IRemoteHub, IXusdToken, IRoleManager} from "./interfaces/IRemoteHub.sol";
-import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
-import {IERC4626} from "./interfaces/IERC4626.sol";
+import { WadRayMath } from "./libraries/WadRayMath.sol";
+import { IRemoteHub, IXusdToken, IRoleManager } from "./interfaces/IRemoteHub.sol";
+import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
+import { IERC4626 } from "./interfaces/IERC4626.sol";
 
 // Because of upgradeable contracts, we cannot use PausableUpgradeable (whenNotPaused modifier)
 
@@ -34,7 +34,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         _disableInitializers();
     }
 
-    function UPGRADER_ROLE() public pure returns(bytes32) {
+    function UPGRADER_ROLE() public pure returns (bytes32) {
         return keccak256("UPGRADER_ROLE");
     }
 
@@ -45,8 +45,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
      * @param newDecimals The number of decimals for the token
      * @param _remoteHub The address of the remote hub
      */
-    function initialize(string calldata name, string calldata symbol, uint8 newDecimals, address _remoteHub) initializer public {
-
+    function initialize(string calldata name, string calldata symbol, uint8 newDecimals, address _remoteHub) public initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -55,18 +54,18 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         _grantRole(UPGRADER_ROLE(), msg.sender);
 
         _decimals = newDecimals;
-        remoteHub = IRemoteHub(_remoteHub);        
+        remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
 
     // ---  remoteHub getters
 
-    function roleManager() internal view returns(IRoleManager) {
+    function roleManager() internal view returns (IRoleManager) {
         return remoteHub.roleManager();
     }
 
-    function xusd() internal view returns(IXusdToken) {
+    function xusd() internal view returns (IXusdToken) {
         return remoteHub.xusd();
     }
 
@@ -84,7 +83,10 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
 
     modifier onlyPortfolioAgent() {
         IRoleManager _roleManager = roleManager();
-        require(_roleManager.hasRole(_roleManager.PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        require(
+            _roleManager.hasRole(_roleManager.PORTFOLIO_AGENT_ROLE(), msg.sender),
+            "Caller doesn't have PORTFOLIO_AGENT_ROLE role"
+        );
         _;
     }
 
@@ -155,7 +157,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     /// @inheritdoc IERC4626
-    function deposit(uint256 assets, address receiver) whenNotPaused external override returns (uint256) {
+    function deposit(uint256 assets, address receiver) external override whenNotPaused returns (uint256) {
         require(assets != 0, "Zero assets not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
@@ -200,7 +202,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     /// @inheritdoc IERC4626
-    function mint(uint256 shares, address receiver) external whenNotPaused override returns (uint256) {
+    function mint(uint256 shares, address receiver) external override whenNotPaused returns (uint256) {
         require(shares != 0, "Zero shares not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
 
@@ -228,7 +230,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     /// @inheritdoc IERC4626
-    function withdraw(uint256 assets, address receiver, address owner) external whenNotPaused override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) external override whenNotPaused returns (uint256) {
         require(assets != 0, "Zero assets not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
         require(owner != address(0), "Zero address for owner not allowed");
@@ -263,7 +265,7 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     /// @inheritdoc IERC4626
-    function redeem(uint256 shares, address receiver, address owner) external whenNotPaused override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) external override whenNotPaused returns (uint256) {
         require(shares != 0, "Zero shares not allowed");
         require(receiver != address(0), "Zero address for receiver not allowed");
         require(owner != address(0), "Zero address for owner not allowed");
@@ -318,5 +320,4 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         paused = false;
         remoteHub = IRemoteHub(_remoteHub);
     }
-
 }

@@ -2,16 +2,10 @@
 pragma solidity >=0.5.0 <0.9.0;
 
 interface IERC4626 {
-
     /**
      * @dev `caller` has exchanged `assets` for `shares`, and transferred those `shares` to `owner`.
      */
-    event Deposit(
-        address indexed caller,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
-    );
+    event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
 
     /**
      * @dev `caller` has exchanged `shares`, owned by `owner`, for `assets`, and transferred those `assets` to
@@ -108,5 +102,4 @@ interface IERC4626 {
      * @dev Burns exactly shares from owner and sends assets of underlying tokens to receiver.
      */
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
-
 }

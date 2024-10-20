@@ -13,7 +13,7 @@ import { bufferToHex } from 'ethereumjs-util';
 import { boolean } from 'hardhat/internal/core/params/argumentTypes';
 import appRoot from 'app-root-path';
 const { expect } = require("chai");
-const  dotenv  = require('dotenv');
+const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 import type { ContractFactory, Contract } from 'ethers';
 
@@ -137,11 +137,11 @@ function fromDir(startPath: string, filter: string): string | undefined {
 
     try {
         const files = fs.readdirSync(startPath);
-        
+
         for (const file of files) {
             const filename = path.join(startPath, file);
             const stat = fs.lstatSync(filename);
-            
+
             if (stat.isDirectory()) {
                 const result = fromDir(filename, filter);
                 if (result) return result;
@@ -170,7 +170,7 @@ async function getContract<T extends keyof ContractTypes>(name: string, networkN
 }
 
 async function getContractFactory<T extends keyof ContractFactoryTypes>(contractName: string, initParams: any): Promise<ContractFactoryTypes[T]> {
-    
+
     let factory;
     try {
         factory = await ethers.getContractFactory(contractName, initParams) as ContractFactoryTypes[T];
@@ -181,7 +181,7 @@ async function getContractFactory<T extends keyof ContractFactoryTypes>(contract
 }
 
 async function deployProxy<T extends keyof ContractTypes>(contractFactory: ContractFactoryTypes[T], initParams: any, unsafeAllow: any, contrParams: any): Promise<ContractTypes[T]> {
-    
+
     let proxy;
     try {
         proxy = await upgrades.deployProxy(contractFactory as ContractFactory, initParams, {
@@ -196,7 +196,7 @@ async function deployProxy<T extends keyof ContractTypes>(contractFactory: Contr
 }
 
 async function upgradeProxy<T extends keyof ContractTypes>(proxy: ContractTypes[T], contractFactory: ContractFactoryTypes[T], unsafeAllow: any, contrParams: any) {
-    
+
     try {
         await upgrades.upgradeProxy(proxy, contractFactory as ContractFactory, {
             kind: 'uups',
@@ -205,10 +205,10 @@ async function upgradeProxy<T extends keyof ContractTypes>(proxy: ContractTypes[
         });
     } catch (error) {
         throw error;
-    }   
+    }
 }
 
-async function deployImplementation<T extends keyof ContractTypes>(contractFactory: ContractFactoryTypes[T], unsafeAllow: any, contrParams: any) : Promise<string> { 
+async function deployImplementation<T extends keyof ContractTypes>(contractFactory: ContractFactoryTypes[T], unsafeAllow: any, contrParams: any): Promise<string> {
     let newImpl;
     try {
         newImpl = await upgrades.deployImplementation(contractFactory as ContractFactory, {
@@ -232,7 +232,7 @@ async function transferETH(amount: number, to: string) {
     });
 }
 
-async function deployOrUpgrade(contractName:string, initParams:any, contrParams:any, unsafeAllow:any, networkName:string, imper:string) {
+async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
     networkName = networkName === "ARBITRUM" ? "_S" : (networkName === "OPTIMISM" ? "_D1" : "_D2");
@@ -247,7 +247,7 @@ async function deployOrUpgrade(contractName:string, initParams:any, contrParams:
         proxy = await deployProxy(contractFactory, initParams, unsafeAllow, contrParams);
         await upgradeProxy(proxy, contractFactory, unsafeAllow, contrParams);
         // await proxy.waitForDeployment();
-        
+
         let impl = await getImplementationAddress(ethers.provider, proxy.target);
         // console.log("New Proxy: " + proxy.target + ", New Impl " + impl);
         // console.log(contractName + " on " + networkName.toLocaleLowerCase() + " is deployed");
@@ -259,13 +259,13 @@ async function deployOrUpgrade(contractName:string, initParams:any, contrParams:
         //         address: proxy.target,
         //         ...artifact
         //     }
-        
+
         // let newname = 'deployments/' + networkName + '/' + contractName + '.json';
         // console.log(newname);
         // fs.writeFileSync(newname, JSON.stringify(proxyDeployments, "", 2))
         return proxy;
     }
-    
+
     let oldImpl = await getImplementationAddress(ethers.provider, proxy.target);
     // console.log("Old Proxy: " + proxy.target + ", Old Impl " + oldImpl);
 
@@ -279,7 +279,7 @@ async function deployOrUpgrade(contractName:string, initParams:any, contrParams:
     const timelockAccount = await ethers.getSigner(imper);
     await transferETH(10, imper);
     await proxy.connect(timelockAccount).upgradeTo(newImpl);
-    
+
     let new2Impl = await getImplementationAddress(ethers.provider, proxy.target);
     // console.log("New Proxy: " + proxy.target + ", New Impl " + new2Impl);
 
@@ -289,7 +289,7 @@ async function deployOrUpgrade(contractName:string, initParams:any, contrParams:
     return proxy;
 }
 
-async function moveRules<T extends keyof ContractTypes>(contract:ContractTypes[T], oldAddress:string, newAddress:string, newUpgrader:string) {
+async function moveRules<T extends keyof ContractTypes>(contract: ContractTypes[T], oldAddress: string, newAddress: string, newUpgrader: string) {
 
     let signer = await ethers.getSigner(oldAddress);
 
@@ -336,8 +336,8 @@ async function initDeploySet(chainType: ChainType) {
     let portfolioManager = (await deployOrUpgrade("PortfolioManager", [], [], [], chain[chainType].NAME, timelock)) as PortfolioManager;
     let xusdToken = (await deployOrUpgrade("XusdToken", ["xUSD", "xUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, timelock)) as XusdToken;
     let wrappedXusdToken = (await deployOrUpgrade("WrappedXusdToken", ["Wrapped xUSD", "wxUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, chainType == ChainType.SOURCE ? timelock : dev4)) as WrappedXusdToken;
-    let payoutManager = (await deployOrUpgrade(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : chainType == ChainType.DESTINATION ? "OptimismPayoutManager" : "EthereumPayoutManager", [remoteHub.target, rewardWallet], [], [], chain[chainType].NAME, dev1)) as PayoutManager; 
-    
+    let payoutManager = (await deployOrUpgrade(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : chainType == ChainType.DESTINATION ? "OptimismPayoutManager" : "EthereumPayoutManager", [remoteHub.target, rewardWallet], [], [], chain[chainType].NAME, dev1)) as PayoutManager;
+
     await exchange.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
     await market.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
     await portfolioManager.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
@@ -383,8 +383,8 @@ async function initDeploySet(chainType: ChainType) {
         await hre.network.provider.request({
             method: "hardhat_impersonateAccount",
             params: [wxusdRich],
-          });
-        
+        });
+
         await wrappedXusdToken.connect(richSigner).transfer(chain[ChainType.SOURCE].ccipPool, 100000000);
         chain[chainType].liqIndex = (await xusdToken.rebasingCreditsPerTokenHighres()).toString();
     } else {
@@ -475,9 +475,9 @@ async function applyMessage(_to: ChainType, multichainCallItems: any, iter: numb
     const evm2EvmMessage = getEvm2EvmMessage(receipt, iter);
     if (!evm2EvmMessage) return;
     // console.log(evm2EvmMessage);
-    
+
     await initDeploySet(_to);
-    
+
     // console.log(_to, evm2EvmMessage);
     await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 }
@@ -487,9 +487,9 @@ async function multichainCallLocal(S: Contracts, D: Contracts, multichainCallIte
     await initDeploySet(ChainType.SOURCE);
 
     await hre.network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: [timelock],
-        });
+        method: "hardhat_impersonateAccount",
+        params: [timelock],
+    });
 
     let tx;
     if (S.remoteHub.target === multichainCallItems[0].receiver) {
@@ -539,7 +539,7 @@ async function applyPayout(_to: ChainType, iter: number) {
 
     await initDeploySet(_to);
 
-    await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);    
+    await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 }
 
 async function initAllAddresses() {
@@ -553,7 +553,7 @@ async function initAllAddresses() {
 
 function encodeWithSignature(signature: string, params: any[]): string {
     const funcName = signature.split('(')[0];
-    const ifaceERC20 = new ethers.Interface(["function "+ signature])
+    const ifaceERC20 = new ethers.Interface(["function " + signature])
     let tokenApproveCall = ifaceERC20.encodeFunctionData(funcName, params)
     return tokenApproveCall;
 }
@@ -599,7 +599,7 @@ async function setParamTest(_to: ChainType, _to2: ChainType) {
             executor: TO2.market.target,
             data: encoded2
         }]
-    }   
+    }
     ]
 
     await applyMessage(_to, multichainCallItems, 0);
@@ -627,12 +627,12 @@ async function payoutTest(_to: ChainType, _to2: ChainType) {
     console.log(`totalSupply before:`, before2);
 
     await applyPayout(_to, 0);
-    
+
     const after = await TO.xusdToken.totalSupply();
     console.log(`totalSupply after:`, after);
 
     await applyPayout(_to2, 1);
-    
+
     const after2 = await TO2.xusdToken.totalSupply();
     console.log(`totalSupply after:`, after2);
 }
@@ -732,10 +732,10 @@ async function getXUSD(account: string, amount: string, chainType: ChainType) {
         method: "hardhat_stopImpersonatingAccount",
         params: [hubAddress],
     });
-}   
+}
 
 async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> {
-    
+
     await initDeploySet(_from);
     let A = contracts[_from] as Contracts;
     let B = contracts[_to] as Contracts;
@@ -754,7 +754,7 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
     await A.xusdToken.connect(signer).approve(A.remoteHub.target, onexUsd);
 
     const tx = await A.remoteHub.connect(signer).crossTransfer(receiver, onexUsd, chain[_to].chainSelector, { value: "1000000000000000000" });
-    
+
     const receipt = await tx.wait();
     // if (!receipt) return;
     const evm2EvmMessage = getEvm2EvmMessage(receipt);
@@ -762,7 +762,7 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
 
     await initDeploySet(_to);
     await transferETH(10, timelock);
-     
+
     await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 
     console.log("balanceAfter", (await B.xusdToken.balanceOf(receiver)).toString());
@@ -776,7 +776,7 @@ async function main() {
 
     await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
     // await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2); //neok
-    
+
     // expect(await upgradeTest("Market", "remote")).to.equal(true);
     // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
     // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
