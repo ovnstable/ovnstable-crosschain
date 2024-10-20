@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
-import "./IPayoutManager.sol";
+import {NonRebaseInfo} from "./IPayoutManager.sol";
 
 interface IXusdToken {
 

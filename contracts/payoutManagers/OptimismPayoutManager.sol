@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
-import "../PayoutManager.sol";
+import {PayoutManager} from "../PayoutManager.sol";
 
 contract OptimismPayoutManager is PayoutManager {
 
@@ -11,9 +11,5 @@ contract OptimismPayoutManager is PayoutManager {
 
     function initialize(address _remoteHub, address _rewardWallet) initializer public {
         __PayoutManager_init(_remoteHub, _rewardWallet);
-    }
-
-    function optimism() external {
-        
     }
 }

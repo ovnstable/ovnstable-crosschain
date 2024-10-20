@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@overnight-contracts/common/contracts/libraries/OvnMath.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OvnMath} from "@overnight-contracts/common/contracts/libraries/OvnMath.sol";
 
-import "./interfaces/IPortfolioManager.sol";
-import "./interfaces/IStrategy.sol";
-import "./interfaces/IRemoteHub.sol";
-import "hardhat/console.sol";
+import {IPortfolioManager} from "./interfaces/IPortfolioManager.sol";
+import {IStrategy} from "./interfaces/IStrategy.sol";
+import {IRemoteHub, IRoleManager, IExchange} from "./interfaces/IRemoteHub.sol";
 
 contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+
+    using SafeERC20 for IERC20;
 
     uint256 public constant TOTAL_WEIGHT = 100000; // 100000 ~ 100%
 
@@ -36,8 +37,12 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     event CashStrategyAlreadySet(address value);
     event CashStrategyRestaked(uint256 value);
     event Balance();
+    event ClaimRewards();
     event TotalRiskFactorUpdated(uint256 value);
     event Exchanged(uint256 amount, address from, address to);
+
+    error InsufficientBalance(uint256 available, uint256 required);
+    error StrategyNotFound();
 
     event StrategyWeightUpdated(
         uint256 index,
@@ -57,16 +62,21 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         _disableInitializers();
     }
 
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
+
     function initialize() initializer public {
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
 
         navSlippageBp = 4; // 0.04%
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     // ---  remoteHub getters
 
@@ -80,10 +90,10 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     // ---  modifiers
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        _;
-    }
+    // modifier onlyAdmin() {
+    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    //     _;
+    // }
 
     modifier onlyExchanger() {
         require(hasRole(roleManager().EXCHANGER(), msg.sender), "Caller doesn't have EXCHANGER role");
@@ -100,15 +110,20 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         _;
     }
 
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
+        _;
+    }
+
     // ---  setters
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
     }
 
-    function setAsset(address _asset) public onlyAdmin {
+    function setAsset(address _asset) public onlyUpgrader {
         require(_asset != address(0), "Zero address not allowed");
 
         asset = IERC20(_asset);
@@ -116,11 +131,12 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     }
 
     function setNavSlippageBp(uint256 _navSlippageBp) public onlyPortfolioAgent {
+        require(_navSlippageBp <= 10000, "Nav slippage bp should be less 100% (10000)");
         navSlippageBp = _navSlippageBp;
         emit NavSlippageBpUpdated(navSlippageBp);
     }
 
-    function setCashStrategy(address _cashStrategy) public onlyAdmin {
+    function setCashStrategy(address _cashStrategy) public onlyUpgrader {
         require(_cashStrategy != address(0), "Zero address not allowed");
 
         if (_cashStrategy == address(cashStrategy)) {
@@ -138,7 +154,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         if (needMoveCash) {
             uint256 amount = asset.balanceOf(address(this));
             if (amount > 0) {
-                asset.transfer(address(cashStrategy), amount);
+                asset.safeTransfer(address(cashStrategy), amount);
                 cashStrategy.stake(address(asset), amount);
                 emit CashStrategyRestaked(amount);
             }
@@ -159,7 +175,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         }
 
         // Stake all free asset amounts to cash Strategy
-        asset.transfer(address(cashStrategy), pmAssetBalance);
+        asset.safeTransfer(address(cashStrategy), pmAssetBalance);
         cashStrategy.stake(
             address(asset),
             pmAssetBalance
@@ -186,25 +202,20 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
         // `if` is cheaper then `require` when need build complex message
         if (currentBalance < _amount) {
-            revert(string(
-                abi.encodePacked(
-                    "In portfolioManager not enough for transfer _amount: ",
-                    Strings.toString(currentBalance),
-                    " < ",
-                    Strings.toString(_amount)
-                )
-            ));
+            revert InsufficientBalance(currentBalance, _amount);
         }
 
         // transfer back tokens
-        asset.transfer(address(exchange()), _amount);
+        asset.safeTransfer(address(exchange()), _amount);
 
         return (_amount, isBalanced);
     }
 
     function claimAndBalance() external override onlyExchanger {
         _claimRewards();
+        emit ClaimRewards();
         _balance();
+        emit Balance();
     }
 
     function balance() public override onlyPortfolioAgent {
@@ -222,7 +233,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
         uint256 _totalRiskFactor = 0;
 
-        for (uint8 i = 0; i < _strategyWeights.length; i++) {
+        for (uint8 i = 0; i < _strategyWeights.length; ++i) {
             StrategyWeight memory weightNew = _strategyWeights[i];
 
             uint256 index = strategyWeightPositions[weightNew.strategy];
@@ -262,9 +273,9 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     }
 
-    function addStrategy(address _strategy) external onlyAdmin {
+    function addStrategy(address _strategy) external onlyUpgrader {
 
-        for (uint8 i = 0; i < strategyWeights.length; i++) {
+        for (uint8 i = 0; i < strategyWeights.length; ++i) {
             require(strategyWeights[i].strategy != _strategy, 'Strategy already exist');
         }
 
@@ -282,7 +293,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         strategyWeightPositions[strategyWeight.strategy] = index;
     }
 
-    function removeStrategy(address _strategy) external onlyAdmin {
+    function removeStrategy(address _strategy) external onlyUpgrader {
 
         uint256 index = strategyWeightPositions[_strategy];
         StrategyWeight memory weight = strategyWeights[index];
@@ -293,7 +304,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
 
         // Remove gap from array
-        for (uint i = index; i < strategyWeights.length - 1; i++) {
+        for (uint i = index; i < strategyWeights.length - 1; ++i) {
 
             StrategyWeight memory _tempWeight = strategyWeights[i+1];
 
@@ -309,7 +320,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     function getStrategyWeight(address strategy) public override view returns (StrategyWeight memory) {
 
         if (strategyWeights.length == 0) {
-            revert('Strategy not found');
+            revert StrategyNotFound();
         }
 
         StrategyWeight memory weight = strategyWeights[strategyWeightPositions[strategy]];
@@ -332,7 +343,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
         StrategyAsset[] memory assets = new StrategyAsset[](count);
 
-        for (uint8 i = 0; i < count; i++) {
+        for (uint8 i = 0; i < count; ++i) {
             IPortfolioManager.StrategyWeight memory weight = weights[i];
             IStrategy strategy = IStrategy(weight.strategy);
 
@@ -357,7 +368,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     function _claimRewards() internal {
         StrategyWeight[] memory strategies = getAllStrategyWeights();
 
-        for (uint8 i; i < strategies.length; i++) {
+        for (uint8 i; i < strategies.length; ++i) {
             StrategyWeight memory item = strategies[i];
 
             if (item.enabledReward) {
@@ -379,14 +390,15 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
         // allowable losses 0.04% = xUSD mint/redeem fee
         uint256 minNavExpected = OvnMath.subBasisPoints(totalNetAssets(), navSlippageBp);
-        minNavExpected = minNavExpected - withdrawAmount; // subscribe withdraw amount
+        require(minNavExpected >= withdrawAmount, "Not enouth money for withdraw during balancing");
+        minNavExpected = minNavExpected - withdrawAmount;
 
         StrategyWeight[] memory strategies = getAllStrategyWeights();
 
         // 1. calc total asset equivalent
         uint256 totalAsset = asset.balanceOf(address(this));
         uint256 totalWeight = 0;
-        for (uint8 i; i < strategies.length; i++) {
+        for (uint8 i; i < strategies.length; ++i) {
             if (!strategies[i].enabled) {// Skip if strategy is not enabled
                 continue;
             }
@@ -415,7 +427,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         // 3. calc diffs for strategies liquidity
         Order[] memory stakeOrders = new Order[](strategies.length);
         uint8 stakeOrdersCount = 0;
-        for (uint8 i; i < strategies.length; i++) {
+        for (uint8 i; i < strategies.length; ++i) {
 
             if (!strategies[i].enabled) {// Skip if strategy is not enabled
                 continue;
@@ -454,7 +466,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         }
 
         // 4.  make staking
-        for (uint8 i; i < stakeOrdersCount; i++) {
+        for (uint8 i; i < stakeOrdersCount; ++i) {
 
             address strategy = stakeOrders[i].strategy;
             uint256 amount = stakeOrders[i].amount;
@@ -463,7 +475,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
             if (currentBalance < amount) {
                 amount = currentBalance;
             }
-            asset.transfer(strategy, amount);
+            asset.safeTransfer(strategy, amount);
 
             IStrategy(strategy).stake(
                 address(asset),
@@ -479,7 +491,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         // expand if need
         if (currentLength == 0 || currentLength - 1 < index) {
             uint256 additionalCount = index - currentLength + 1;
-            for (uint8 i = 0; i < additionalCount; i++) {
+            for (uint8 i = 0; i < additionalCount; ++i) {
                 strategyWeights.push();
             }
         }
@@ -500,7 +512,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         uint256 totalAssetPrice = 0;
         IPortfolioManager.StrategyWeight[] memory weights = getAllStrategyWeights();
 
-        for (uint8 i = 0; i < weights.length; i++) {
+        for (uint8 i = 0; i < weights.length; ++i) {
             IStrategy strategy = IStrategy(weights[i].strategy);
             if (liquidation) {
                 totalAssetPrice += strategy.liquidationValue();
@@ -515,7 +527,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy() public {
+    function afterRedeploy() public onlyPortfolioAgent {
         totalRiskFactor = 7500;
         navSlippageBp = 4;
     }

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlEnumerableUpgradeable, AccessControlUpgradeable, IAccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import "./interfaces/IRoleManager.sol";
+import {IRoleManager} from "./interfaces/IRoleManager.sol";
 
 /**
  * @dev Manager role for all contracts of xUSD
  * Single point for assigning roles
  * Allow to set role in this place and this will be available for other contracts
  */
-contract RoleManager is Initializable, AccessControlEnumerableUpgradeable, UUPSUpgradeable {
+contract RoleManager is Initializable, AccessControlEnumerableUpgradeable, UUPSUpgradeable, IRoleManager {
 
     // ---  initializer
 
@@ -21,41 +21,84 @@ contract RoleManager is Initializable, AccessControlEnumerableUpgradeable, UUPSU
         _disableInitializers();
     }
 
+    /**
+     * @dev Initializes the contract, setting up initial roles and admin relationships.
+     * This function can only be called once due to the 'initializer' modifier.
+     */
     function initialize() initializer public {
         __AccessControlEnumerable_init();
         __UUPSUpgradeable_init();
 
+        // Grant the DEFAULT_ADMIN_ROLE and UPGRADER_ROLE to the contract deployer
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
+        
+        // Set PORTFOLIO_AGENT_ROLE as the admin for UNIT_ROLE
         _setRoleAdmin(UNIT_ROLE(), PORTFOLIO_AGENT_ROLE());
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    /**
+     * @dev Function to authorize an upgrade of the contract.
+     * It's empty here, but the 'onlyUpgrader' modifier ensures that only accounts with UPGRADER_ROLE can call it.
+     * @param newImplementation Address of the new implementation contract
+     */
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     /**
-     * @return PORTFOLIO_AGENT_ROLE -- portfolio agent wallet (dev wallet)
+     * @dev Modifier to restrict access to accounts with UPGRADER_ROLE
+     */
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
+        _;
+    }
+
+    /**
+     * @dev Returns the role identifier for PORTFOLIO_AGENT_ROLE
+     * @return bytes32 The keccak256 hash of "PORTFOLIO_AGENT_ROLE"
      */
     function PORTFOLIO_AGENT_ROLE() public pure returns(bytes32) {
         return keccak256("PORTFOLIO_AGENT_ROLE");
     }
 
     /**
-     * @return UNIT_ROLE -- unit wallet (allows our services interract with some methods)
+     * @dev Returns the role identifier for UNIT_ROLE
+     * @return bytes32 The keccak256 hash of "UNIT_ROLE"
      */
     function UNIT_ROLE() public pure returns(bytes32) {
         return keccak256("UNIT_ROLE");
     }
 
     /**
-     * @return EXCHANGER -- exchange contract
+     * @dev Returns the role identifier for EXCHANGER
+     * @return bytes32 The keccak256 hash of "EXCHANGER"
      */
     function EXCHANGER() public pure returns(bytes32) {
         return keccak256("EXCHANGER");
     }
 
     /**
-     * @return FREE_RIDER_ROLE -- role can mint and redeem wothout fees
+     * @dev Returns the role identifier for FREE_RIDER_ROLE
+     * @return bytes32 The keccak256 hash of "FREE_RIDER_ROLE"
      */
     function FREE_RIDER_ROLE() public pure returns(bytes32) {
         return keccak256("FREE_RIDER_ROLE");
+    }
+
+    /**
+     * @dev Returns the role identifier for UPGRADER_ROLE
+     * @return bytes32 The keccak256 hash of "UPGRADER_ROLE"
+     */
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
+
+    /**
+     * @dev Checks if an account has a specific role
+     * @param role The role identifier to check
+     * @param account The address of the account to check
+     * @return bool True if the account has the role, false otherwise
+     */
+    function hasRole(bytes32 role, address account) public view virtual override(AccessControlUpgradeable, IAccessControlUpgradeable, IRoleManager) returns (bool) {
+        return AccessControlUpgradeable.hasRole(role, account);
     }
 }

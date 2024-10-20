@@ -11,6 +11,8 @@ interface IRoleManager {
 
     function FREE_RIDER_ROLE() external view returns (bytes32);
 
+    function UPGRADER_ROLE() external view returns(bytes32);
+
     function hasRole(bytes32 role, address account) external view returns (bool);
 
 }

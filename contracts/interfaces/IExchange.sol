@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "./IInsuranceExchange.sol";
+import {IInsuranceExchange} from "./IInsuranceExchange.sol";
 
 interface IExchange {
 
     struct MintParams {
-        address asset;   // USDC | BUSD depends at chain
+        address asset;
         uint256 amount;  // amount asset
         string referral; // code from Referral Program -> if not have -> set empty
     }

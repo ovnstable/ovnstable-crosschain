@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {IERC20MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
-import "./interfaces/IRoleManager.sol";
-import "./interfaces/IRemoteHub.sol";
-import "./libraries/WadRayMath.sol";
-import "hardhat/console.sol";
+import {IRoleManager} from "./interfaces/IRoleManager.sol";
+import {IRemoteHub, IExchange} from "./interfaces/IRemoteHub.sol";
+import {WadRayMath} from "./libraries/WadRayMath.sol";
 
 // Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
@@ -73,6 +72,9 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         uint256 rebasingCredits,
         uint256 rebasingCreditsPerToken
     );
+    event Paused();
+    event Unpaused();
+    error ErrorInSubCredits(string error);
 
     // ---  initializer
 
@@ -81,22 +83,32 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         _disableInitializers();
     }
 
-    function initialize(string calldata name, string calldata symbol, uint8 decimals, address _remoteHub) initializer public {
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
+
+    /// @notice Initializes the contract
+    /// @param __name The name of the token
+    /// @param __symbol The symbol of the token
+    /// @param __decimals The number of decimals for the token
+    /// @param __remoteHub The address of the remote hub
+    function initialize(string calldata __name, string calldata __symbol, uint8 __decimals, address __remoteHub) initializer public {
         __Context_init_unchained();
-        _name = name;
-        _symbol = symbol;
+        _name = __name;
+        _symbol = __symbol;
 
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender()); 
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
 
-        _decimals = decimals;
+        _decimals = __decimals;
         _rebasingCreditsPerToken = WadRayMath.RAY;
-        remoteHub = IRemoteHub(_remoteHub);
+        remoteHub = IRemoteHub(__remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     // ---  remoteHub getters
 
@@ -106,10 +118,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     function exchange() internal view returns(IExchange) {
         return remoteHub.exchange();
-    }
-
-    function wXusd() internal view returns(IWrappedXusdToken) {
-        return remoteHub.wxusd();
     }
 
     // ---  modifiers
@@ -126,34 +134,39 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         _;
     }
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        _;
-    }
+    // modifier onlyAdmin() {
+    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    //     _;
+    // }
 
     modifier onlyPortfolioAgent() {
-        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
         _;
     }
 
     modifier onlyExchanger() {
-        require(address(exchange()) == _msgSender(), "Caller is not the EXCHANGER");
+        require(address(exchange()) == msg.sender, "Caller is not the EXCHANGER");
         _;
     }
 
-    modifier onlyExchangerOrWrapper() {
-        require(address(exchange()) == _msgSender() || address(remoteHub.wxusd()) == _msgSender(), "Caller is not the EXCHANGER or WRAPPER");
+    modifier onlyExchangerOrHub() {
+        require(address(exchange()) == msg.sender || address(remoteHub) == msg.sender, "Caller is not the EXCHANGER or HUB");
         _;
     }
 
     modifier onlyPayoutManager() {
-        require(address(remoteHub.payoutManager()) == _msgSender(), "Caller is not the PAYOUT_MANAGER");
+        require(address(remoteHub.payoutManager()) == msg.sender, "Caller is not the PAYOUT_MANAGER");
+        _;
+    }
+
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
         _;
     }
 
     // --- setters
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
@@ -163,10 +176,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
 
     function pause() public onlyPortfolioAgent {
         paused = true;
+        emit Paused();
     }
 
     function unpause() public onlyPortfolioAgent {
         paused = false;
+        emit Unpaused();
     }
 
     function isPaused() external view returns (bool) {
@@ -206,8 +221,8 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         uint256 owners = this.ownerLength();
 
         uint256 total = 0;
-        for(uint256 index = 0; index < owners; index++) {
-            total += this.balanceOf(_owners.at(index));
+        for (uint256 i = 0; i < owners; ++i) {
+            total += this.balanceOf(_owners.at(i));
         }
 
         return total;
@@ -287,10 +302,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Transfer tokens to a specified address.
-     * @param _to the address to transfer to.
-     * @param _value the amount to be transferred.
-     * @return true on success.
+     * @notice Transfers tokens to a specified address
+     * @param _to The address to transfer to
+     * @param _value The amount to be transferred
+     * @return bool true on success
      */
     function transfer(address _to, uint256 _value) public override whenNotPaused returns (bool) {
         require(_to != address(0), "Transfer to zero address");
@@ -304,8 +319,8 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Converts xUSD balance value to credits
-     * @param owner The address which owns the funds.
+     * @notice Converts xUSD balance value to credits
+     * @param owner The address which owns the funds
      * @param amount The amount for conversion in xUSD
      * @return credit The number of tokens in credits
      */
@@ -320,10 +335,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Converts credits balance value to xUSD
-     * @param owner The address which owns the funds.
+     * @notice Converts credits balance value to xUSD
+     * @param owner The address which owns the funds
      * @param credit The amount for conversion in credits
-     * @return asset The number of tokens in credits
+     * @return asset The number of tokens in xUSD
      */
     function creditToAsset(address owner, uint256 credit) public view returns(uint256 asset) {
         if (credit >= MAX_SUPPLY / 10 ** 36) {
@@ -336,14 +351,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev This method subtracts credits. Due to the fact that credits
-     * are stored with increased accuracy (1e9), we consider as
-     * the same number everything that equal like amounts.
-     * @param owner The address which owns the funds.
+     * @notice Subtracts credits with increased accuracy
+     * @param owner The address which owns the funds
      * @param credit1 The minuend number in credits (increased accuracy)
      * @param credit2 The subtrahend number in credits (increased accuracy)
      * @param errorText Text for error if the subtrahend is much greater than the minuend
-     * @return resultCredit The number of tokens in credits
+     * @return resultCredit The resulting number of tokens in credits
      */
     function subCredits(address owner, uint256 credit1, uint256 credit2, string memory errorText) public view returns(uint256 resultCredit) {
         uint256 amount1 = creditToAsset(owner, credit1);
@@ -351,15 +364,16 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         if (amount1 == MAX_SUPPLY || amount1 + 1 >= amount2) {
             return credit1 >= credit2 ? credit1 - credit2 : 0;
         } else {
-            revert(errorText);
+            revert ErrorInSubCredits(errorText);
         }
     }
 
     /**
-     * @dev Transfer tokens from one address to another.
-     * @param _from The address you want to send tokens from.
-     * @param _to The address you want to transfer to.
-     * @param _value The amount of tokens to be transferred.
+     * @notice Transfer tokens from one address to another
+     * @param _from The address to transfer from
+     * @param _to The address to transfer to
+     * @param _value The amount of tokens to be transferred
+     * @return bool true on success
      */
     function transferFrom(address _from, address _to, uint256 _value) public override whenNotPaused returns (bool) {
         require(_to != address(0), "Transfer to zero address");
@@ -428,17 +442,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Approve the passed address to spend the specified amount of tokens
-     *      on behalf of msg.sender. This method is included for ERC20
-     *      compatibility. `increaseAllowance` and `decreaseAllowance` should be
-     *      used instead.
-     *
-     *      Changing an allowance with this method brings the risk that someone
-     *      may transfer both the old and the new allowance - if they are both
-     *      greater than zero - if a transfer transaction is mined before the
-     *      later approve() call is mined.
-     * @param _spender The address which will spend the funds.
-     * @param _value The amount of tokens to be spent.
+     * @notice Approve the passed address to spend the specified amount of tokens on behalf of msg.sender
+     * @param _spender The address which will spend the funds
+     * @param _value The amount of tokens to be spent
+     * @return bool true on success
      */
     function approve(address _spender, uint256 _value) public override whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _value);
@@ -448,12 +455,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Increase the amount of tokens that an owner has allowed to
-     *      `_spender`.
-     *      This method should be used instead of approve() to avoid the double
-     *      approval vulnerability described above.
-     * @param _spender The address which will spend the funds.
-     * @param _addedValue The amount of tokens to increase the allowance by.
+     * @notice Increase the amount of tokens that an owner has allowed to a spender
+     * @param _spender The address which will spend the funds
+     * @param _addedValue The amount of tokens to increase the allowance by
+     * @return bool true on success
      */
     function increaseAllowance(address _spender, uint256 _addedValue) public whenNotPaused returns (bool) {
         uint256 scaledAmount = assetToCredit(msg.sender, _addedValue);
@@ -463,11 +468,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Decrease the amount of tokens that an owner has allowed to
-            `_spender`.
-     * @param _spender The address which will spend the funds.
-     * @param _subtractedValue The amount of tokens to decrease the allowance
-     *        by.
+     * @notice Decrease the amount of tokens that an owner has allowed to a spender
+     * @param _spender The address which will spend the funds
+     * @param _subtractedValue The amount of tokens to decrease the allowance by
+     * @return bool true on success
      */
     function decreaseAllowance(address _spender, uint256 _subtractedValue) public whenNotPaused
         returns (bool)
@@ -479,9 +483,11 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Mints new tokens, increasing totalSupply.
+     * @notice Mints new tokens, increasing totalSupply
+     * @param _account The address that will receive the minted tokens
+     * @param _amount The amount of tokens to mint
      */
-    function mint(address _account, uint256 _amount) external whenNotPaused onlyExchangerOrWrapper {
+    function mint(address _account, uint256 _amount) external whenNotPaused onlyExchangerOrHub {
         _mint(_account, _amount);
     }
 
@@ -523,9 +529,11 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Burns tokens, decreasing totalSupply.
+     * @notice Burns tokens, decreasing totalSupply
+     * @param account The address from which to burn tokens
+     * @param amount The amount of tokens to burn
      */
-    function burn(address account, uint256 amount) external whenNotPaused onlyExchangerOrWrapper {
+    function burn(address account, uint256 amount) external whenNotPaused onlyExchangerOrHub {
         _burn(account, amount);
     }
 
@@ -580,14 +588,13 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         }
     }
 
-    function _isNonRebasingAccount(address _account) internal returns (bool) {
+    function _isNonRebasingAccount(address _account) internal view returns (bool) {
         return rebaseState[_account] == RebaseOptions.OptOut;
     }
 
     /**
-     * @dev Add a contract address to the non-rebasing exception list. The
-     * address's balance will be part of rebases and the account will be exposed
-     * to upside and downside.
+     * @notice Add a contract address to the non-rebasing exception list
+     * @param _address The address to opt in for rebasing
      */
     function rebaseOptIn(address _address) public onlyPayoutManager whenNotPaused nonReentrant {
         require(_isNonRebasingAccount(_address), "Account has not opted out");
@@ -613,7 +620,8 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Explicitly mark that an address is non-rebasing.
+     * @notice Explicitly mark that an address is non-rebasing
+     * @param _address The address to opt out of rebasing
      */
     function rebaseOptOut(address _address) public onlyPayoutManager whenNotPaused nonReentrant {
         require(!_isNonRebasingAccount(_address), "Account has not opted in");
@@ -634,12 +642,12 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
     }
 
     /**
-     * @dev Modify the supply without minting new tokens. This uses a change in
-     *      the exchange rate between "credits" and xUSD tokens to change balances.
-     * @param _newTotalSupply New total supply of xUSD.
+     * @notice Modify the supply without minting new tokens
+     * @param _newTotalSupply New total supply of xUSD
+     * @return NonRebaseInfo[] Array of non-rebasing account information
+     * @return uint256 Total amount of non-rebasing delta
      */
     function changeSupply(uint256 _newTotalSupply) external onlyExchanger nonReentrant whenNotPaused returns (NonRebaseInfo [] memory, uint256) {
-        console.log("changeSupply", _totalSupply);
         require(_totalSupply > 0, "Cannot increase 0 supply");
         require(_newTotalSupply >= _totalSupply, 'negative rebase');
 
@@ -669,7 +677,7 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         _totalSupply = _rebasingCredits * 1e18 / _rebasingCreditsPerToken + nonRebasingSupply;
 
         NonRebaseInfo [] memory nonRebaseInfo = new NonRebaseInfo[](_nonRebaseOwners.length());
-        for (uint256 i = 0; i < nonRebaseInfo.length; i++) {
+        for (uint256 i = 0; i < nonRebaseInfo.length; ++i) {
             address userAddress = _nonRebaseOwners.at(i);
             uint256 userBalance = balanceOf(userAddress);
             uint256 userPart = (nonRebasingSupply != 0) ? userBalance * deltaNR / nonRebasingSupply : 0;
@@ -706,8 +714,6 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
             // transfer
             if (balanceOf(from) == 0) {
                 _owners.remove(from);
-            } else if (amount > 0) {
-                _owners.add(to);
             }
             if (amount > 0) {
                 _owners.add(to);
@@ -715,17 +721,10 @@ contract XusdToken is Initializable, ContextUpgradeable, IERC20Upgradeable, IERC
         }
     }
 
-    // --- testing
-    // delete after deploy
-
-    function mint2(address _account, uint256 _amount) public {
-        _mint(_account, _amount);
-    }
-
     // ---  for deploy
     // delete after deploy
     
-    function afterRedeploy(uint256 value) public {
+    function afterRedeploy(uint256 value) public onlyPortfolioAgent {
         if (value != 0) {
             _rebasingCreditsPerToken = value;
         }

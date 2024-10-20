@@ -6,17 +6,22 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable, IAccessControlUpgradeable, IERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IRemoteHub.sol";
+import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager, IExchange, IWrappedXusdToken, IMarket, IRemoteHubUpgrader, ChainItem} from "./interfaces/IRemoteHub.sol";
+import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
+
 import "hardhat/console.sol";
 
+/**
+ * @title RemoteHub
+ * @notice This contract manages cross-chain communication and token transfers using Chainlink's CCIP
+ */
 contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
-
 
     struct MultichainCallItem {
         uint64 chainSelector;
@@ -76,6 +81,9 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         bytes data
     );
 
+    event Paused();
+    event Unpaused();
+
     // ---  errors
 
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
@@ -90,24 +98,36 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _router) CCIPReceiver(_router) {}
+    constructor(address _router) CCIPReceiver(_router) {
+        _disableInitializers();
+    }
 
+    /**
+     * @notice Initializes the contract
+     * @param _chainSelector The chain selector for this contract
+     */
     function initialize(uint64 _chainSelector) initializer public {
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
         chainSelector = _chainSelector;
         ccipGasLimit = 500_000;
     }
 
+    /**
+     * @notice Checks if the contract supports a given interface
+     * @param interfaceId The interface identifier
+     * @return bool True if the interface is supported
+     */
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
         return (interfaceId == type(IAccessControlUpgradeable).interfaceId) || 
                (interfaceId == type(IERC165Upgradeable).interfaceId) || 
                CCIPReceiver.supportsInterface(interfaceId);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
 
     // ---  remoteHub getters
 
@@ -180,47 +200,70 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     }
 
     modifier onlyPortfolioAgent() {
-        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
         _;
     }
 
     modifier onlyExchanger() {
-        require(address(exchange()) == _msgSender(), "Caller is not the EXCHANGER");
+        require(address(exchange()) == msg.sender, "Caller is not the EXCHANGER");
         _;
+    }
+
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
+        _;
+    }
+
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
     }
 
     // --- setters
 
     // ---  logic
 
+    /**
+     * @notice Pauses the contract
+     */
     function pause() public onlyPortfolioAgent {
         _pause();
+        emit Paused();
     }
 
+    /**
+     * @notice Unpauses the contract
+     */
     function unpause() public onlyPortfolioAgent {
         _unpause();
+        emit Unpaused();
     }
 
-    function addChainItem(ChainItem memory chainItem) public onlyAdmin {
-        bool isNew = true;
-        for (uint256 i = 0; i < chainItems.length; i++) {
+    /**
+     * @notice Adds or updates a chain item in the chainItems array and mapping
+     * @param chainItem The chain item to add or update
+     */
+    function addChainItem(ChainItem memory chainItem) public onlyUpgrader {
+
+        for (uint256 i = 0; i < chainItems.length; ++i) {
             ChainItem memory item = chainItems[i];
 
             if (item.chainSelector == chainItem.chainSelector) {
                 chainItems[i] = chainItem;
-                isNew = false;
+                return;
             }
         }
 
-        if (isNew) {
-            chainItems.push(chainItem);
-            chainItemById[chainItem.chainSelector] = chainItem;
-        }
+        chainItems.push(chainItem);
+        chainItemById[chainItem.chainSelector] = chainItem;
     }
 
-    function removeChainItem(uint64 _chainSelector) public onlyAdmin {
+    /**
+     * @notice Removes a chain item from the chainItems array
+     * @param _chainSelector The chain selector of the item to remove
+     */
+    function removeChainItem(uint64 _chainSelector) public onlyUpgrader {
         uint256 index = type(uint256).max;
-        for (uint256 i = 0; i < chainItems.length; i++) {
+        for (uint256 i = 0; i < chainItems.length; ++i) {
             if (chainItems[i].chainSelector == _chainSelector) {
                 index = i;
             }
@@ -237,26 +280,42 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         return chainItemById[key];
     }
 
-    /// @dev Updates the allowlist status of a destination chain for transactions.
-    function allowlistDestinationChain(uint64 _destinationChainSelector, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a destination chain for transactions
+     * @param _destinationChainSelector The selector of the destination chain
+     * @param allowed The new allowlist status
+     */
+    function allowlistDestinationChain(uint64 _destinationChainSelector, bool allowed) external onlyUpgrader {
         allowlistedDestinationChains[_destinationChainSelector] = allowed;
     }
 
-    /// @dev Updates the allowlist status of a source chain for transactions.
-    function allowlistSourceChain(uint64 _sourceChainSelector, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a source chain for transactions
+     * @param _sourceChainSelector The selector of the source chain
+     * @param allowed The new allowlist status
+     */
+    function allowlistSourceChain(uint64 _sourceChainSelector, bool allowed) external onlyUpgrader {
         allowlistedSourceChains[_sourceChainSelector] = allowed;
     }
 
-    /// @dev Updates the allowlist status of a sender for transactions.
-    function allowlistSender(address _sender, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a sender for transactions
+     * @param _sender The address of the sender
+     * @param allowed The new allowlist status
+     */
+    function allowlistSender(address _sender, bool allowed) external onlyUpgrader {
         allowlistedSenders[_sender] = allowed;
     }
 
-    /// @dev Set new gasLimit for CCIP send
-    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyAdmin {
+    /**
+     * @notice Set new gasLimit for CCIP send
+     * @param _ccipGasLimit The new gas limit for CCIP transactions
+     */
+    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyUpgrader {
         ccipGasLimit = _ccipGasLimit;
     }
 
+    // @notice Sends a message via CCIP
     function _sendViaCCIP(MultichainCallItem memory item) internal
         onlyAllowlistedDestinationChain(item.chainSelector)
         validateReceiver(item.receiver)
@@ -270,6 +329,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
             revert NotEnoughBalance(address(this).balance, fees);
 
         if (item.amount > 0) {
+            IERC20(item.token).approve(address(router), 0); // because of race condition fix
             IERC20(item.token).approve(address(router), item.amount);
         }
 
@@ -280,12 +340,12 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         return messageId;
     }
 
-    /// handle a received message
+    // @notice Handles received CCIP messages
     function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage) internal override
         onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address))) 
     {
         DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[]));
-        for (uint i = 0; i < receivedData.length; i++) {
+        for (uint i = 0; i < receivedData.length; ++i) {
             if (receivedData[i].executor == address(this)) {
                 revert ExecutorIsTheSameContract();
             } else {
@@ -327,7 +387,11 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
 
     receive() external payable {}
 
-    function withdraw(address _beneficiary) public onlyAdmin {
+    /**
+     * @notice Withdraws native tokens from the contract
+     * @param _beneficiary The address to receive the withdrawn tokens
+     */
+    function withdraw(address _beneficiary) public onlyUpgrader {
         uint256 amount = address(this).balance;
 
         if (amount == 0) {
@@ -341,11 +405,12 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
-    /// @notice Allows the owner of the contract to withdraw all tokens of a specific ERC20 token.
-    /// @dev This function reverts with a 'NothingToWithdraw' error if there are no tokens to withdraw.
-    /// @param _beneficiary The address to which the tokens will be sent.
-    /// @param _token The contract address of the ERC20 token to be withdrawn.
-    function withdrawToken(address _beneficiary, address _token) public onlyAdmin {
+    /**
+     * @notice Withdraws ERC20 tokens from the contract
+     * @param _beneficiary The address to receive the withdrawn tokens
+     * @param _token The address of the ERC20 token to withdraw
+     */
+    function withdrawToken(address _beneficiary, address _token) public onlyUpgrader {
         
         uint256 amount = IERC20(_token).balanceOf(address(this));
 
@@ -356,11 +421,15 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         IERC20(_token).safeTransfer(_beneficiary, amount);
     }
 
+    /**
+     * @notice Executes multiple cross-chain calls
+     * @param multichainCallItems An array of MultichainCallItem structs representing the calls to be made
+     */
     function multichainCall(MultichainCallItem[] memory multichainCallItems) public payable whenNotPaused onlyAdmin {
-        for (uint256 i; i < multichainCallItems.length; i++) {
+        for (uint256 i; i < multichainCallItems.length; ++i) {
             if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver != address(this)) {
             } else if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver == address(this)) {
-                for (uint j = 0; j < multichainCallItems[i].batchData.length; j++) {
+                for (uint j = 0; j < multichainCallItems[i].batchData.length; ++j) {
                     (bool success, bytes memory data) = multichainCallItems[i].batchData[j].executor.call(multichainCallItems[i].batchData[j].data);
                     require(success, "Call failed");
                     emit CallExecuted(address(this), success, data);
@@ -371,9 +440,13 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
+    /**
+     * @notice Executes multi-chain payout
+     * @param newDelta The new delta value for the payout
+     */
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
         require(chainItems[0].chainSelector == chainSelector, "first chainItems element should be motherchain");
-        for (uint256 i = 1; i < chainItems.length; i++) {
+        for (uint256 i = 1; i < chainItems.length; ++i) {
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
                 executor: chainItems[i].exchange,
@@ -390,37 +463,62 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         }
     }
 
-    function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) whenNotPaused payable public {
+    /**
+     * @notice Performs a cross-chain token transfer
+     * @param _to The address to receive the tokens on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @param _destinationChainSelector The selector of the destination chain
+     */
+    function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) 
+    onlyAllowlistedDestinationChain(_destinationChainSelector)
+    whenNotPaused 
+    payable public {
+        IXusdToken _xusd = xusd();
+        IWrappedXusdToken _wxusd = wxusd();
+        bool isSMotherChain = chainSelector == chainItems[0].chainSelector;
+        bool isDMotherChain = _destinationChainSelector == chainItems[0].chainSelector;
+        IERC20(address(_xusd)).safeTransferFrom(msg.sender, address(this), _amount);
+        _xusd.approve(address(chainItemById[chainSelector].market), _xusd.balanceOf(address(this)));
+        IMarket(chainItemById[chainSelector].market).wrap(address(_xusd), _xusd.balanceOf(address(this)), address(this));
 
-        xusd().transferFrom(msg.sender, address(this), _amount);
-        xusd().approve(address(chainItemById[chainSelector].market), xusd().balanceOf(address(this)));
-        IMarket(chainItemById[chainSelector].market).wrap(address(xusd()), xusd().balanceOf(address(this)), address(this)); 
+        if (!isSMotherChain) {
+            IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
+        }
 
-        DataCallItem[] memory dataCallItems = new DataCallItem[](2);
-        dataCallItems[0] = DataCallItem({
-            executor: chainItemById[_destinationChainSelector].wxusd,
-            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, wxusd().balanceOf(address(this)))
-        });
-        dataCallItems[1] = DataCallItem({
-            executor: chainItemById[_destinationChainSelector].market,
-            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, wxusd().balanceOf(address(this)), _to)
-        });
+        DataCallItem[] memory dataCallItems = new DataCallItem[](isDMotherChain ? 2 : 3);
+        if (isDMotherChain) {
+            dataCallItems[0] = DataCallItem({
+                executor: chainItemById[_destinationChainSelector].wxusd,
+                data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
+            });
+            dataCallItems[1] = DataCallItem({
+                executor: chainItemById[_destinationChainSelector].market,
+                data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, _wxusd.balanceOf(address(this)), _to)
+            });
+        } else {
+            dataCallItems[0] = DataCallItem({
+                executor: chainItemById[_destinationChainSelector].xusd,
+                data: abi.encodeWithSignature("mint(address,uint256)", chainItemById[_destinationChainSelector].wxusd, _amount)
+            });
+            dataCallItems[1] = DataCallItem({
+                executor: chainItemById[_destinationChainSelector].wxusd,
+                data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
+            });
+            dataCallItems[2] = DataCallItem({
+                executor: chainItemById[_destinationChainSelector].market,
+                data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, _wxusd.balanceOf(address(this)), _to)
+            });
+        }
 
         MultichainCallItem memory multichainCallItem = MultichainCallItem({
                 chainSelector: _destinationChainSelector,
                 receiver: chainItemById[_destinationChainSelector].remoteHub,
                 token: chainItemById[chainSelector].wxusd,
-                amount: wxusd().balanceOf(address(this)),
+                amount: _wxusd.balanceOf(address(this)),
                 batchData: dataCallItems
             });
 
         _sendViaCCIP(multichainCallItem);
     }
 
-    // --- testing
-    // delete after deploy
-
-    function checkUpgrading() public pure returns(bool) {
-        return false;
-    }
 }

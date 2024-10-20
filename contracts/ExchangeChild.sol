@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IRemoteHub.sol";
-import "hardhat/console.sol";
+import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager} from "./interfaces/IRemoteHub.sol";
+import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 
 contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
 
@@ -31,6 +31,10 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
     constructor() {
         _disableInitializers();
     }
+    
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
 
     function initialize(address _remoteHub) initializer public {
         __AccessControl_init();
@@ -38,11 +42,12 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
 
         remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     // ---  remoteHub getters
 
@@ -60,20 +65,25 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     // ---  modifiers
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    // modifier onlyAdmin() {
+    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    //     _;
+    // }
+
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
         _;
     }
 
     // --- setters
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
     }
 
-    function setPayoutDelta(uint256 _payoutDelta) external onlyAdmin {
+    function setPayoutDelta(uint256 _payoutDelta) external onlyUpgrader {
         payoutDelta = _payoutDelta;
         emit PayoutDeltaUpdated(payoutDelta);
     }
@@ -83,24 +93,27 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
     function payout() public {
         require(newDelta > 0, "new delta is not ready");
         require(_isUnit() || payoutDeadline >= block.timestamp, "You are not Unit or timestamp is not ready.");
-
         require(newDelta > LIQ_DELTA_DM, "Negative rebase");
-        uint256 totalNav = xusd().totalSupply() * newDelta / LIQ_DELTA_DM;
-        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = xusd().changeSupply(totalNav);
+
+        IXusdToken _xusd = xusd();
+        IPayoutManager _payoutManager = payoutManager();
+
+        uint256 totalNav = _xusd.totalSupply() * newDelta / LIQ_DELTA_DM;
+        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = _xusd.changeSupply(totalNav);
 
         if (nonRebaseDelta > 0) {
-            xusd().mint(address(payoutManager()), nonRebaseDelta);
-            payoutManager().payoutDone(address(xusd()), nonRebaseInfo);
+            _xusd.mint(address(_payoutManager), nonRebaseDelta);
+            _payoutManager.payoutDone(address(_xusd), nonRebaseInfo);
         }
 
-        require(xusd().totalSupply() == totalNav,'total != nav');
+        require(_xusd.totalSupply() == totalNav,'total != nav');
         
         newDelta = 0;
 
         emit PayoutShortEvent(newDelta, nonRebaseDelta);
     }
 
-    function payout(uint256 _newDelta) external onlyAdmin {
+    function payout(uint256 _newDelta) external onlyUpgrader {
         require(_newDelta > LIQ_DELTA_DM, "Negative rebase");
         
         newDelta = _newDelta;

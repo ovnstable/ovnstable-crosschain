@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0 <0.9.0;
 import {PayoutManager} from "../PayoutManager.sol";
 
-contract ArbitrumPayoutManager is PayoutManager {
+contract EthereumPayoutManager is PayoutManager {
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

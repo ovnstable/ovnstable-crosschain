@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IInsuranceExchange.sol";
-import "./interfaces/IPortfolioManager.sol";
-import "./interfaces/IRemoteHub.sol";
-import "./interfaces/IStrategy.sol";
-import "hardhat/console.sol";
+import {IInsuranceExchange, Multicall2} from "./interfaces/IInsuranceExchange.sol";
+import {IPortfolioManager} from "./interfaces/IPortfolioManager.sol";
+import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager} from "./interfaces/IRemoteHub.sol";
+import {IStrategy} from "./interfaces/IStrategy.sol";
+import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 
 contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
 
@@ -23,7 +23,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     uint256 public reentrancyGuardStatus;
 
-    IERC20 public usdc; // asset name
+    IERC20 public asset;
 
     IPortfolioManager public portfolioManager; //portfolio manager contract
 
@@ -79,11 +79,15 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event OracleLossUpdate(uint256 oracleLoss, uint256 denominator);
     event CompensateLossUpdate(uint256 compensateLoss, uint256 denominator);
     event MaxAbroadUpdated(uint256 abroad);
-
     event EventExchange(string label, uint256 amount, uint256 fee, address sender);
     event PayoutEvent(uint256 profit, uint256 excessProfit, uint256 insurancePremium, uint256 insuranceLoss);
     event NextPayoutTime(uint256 nextPayoutTime);
     event PayoutSimulationForInsurance(int256 premium);
+    event Paused();
+    event Unpaused();
+    
+    error OracleLoss();
+    error SimilationRevert();
 
     // ---  initializer
 
@@ -92,12 +96,17 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         _disableInitializers();
     }
 
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
+
     function initialize(address _remoteHub) initializer public {
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
 
         buyFee = 40;
         buyFeeDenominator = 100000;
@@ -119,7 +128,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     // ---  remoteHub getters
 
@@ -137,18 +146,25 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     // ---  modifiers
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        _;
-    }
+    // modifier onlyAdmin() {
+    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    //     _;
+    // }
 
     modifier onlyPortfolioAgent() {
-        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        IRoleManager _roleManager = roleManager();
+        require(_roleManager.hasRole(_roleManager.PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
         _;
     }
 
     modifier onlyUnit() {
-        require(roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender), "Caller doesn't have UNIT_ROLE role");
+        IRoleManager _roleManager = roleManager();
+        require(_roleManager.hasRole(_roleManager.UNIT_ROLE(), msg.sender), "Caller doesn't have UNIT_ROLE role");
+        _;
+    }
+
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
         _;
     }
 
@@ -161,37 +177,37 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     // --- setters
 
-    function setAsset(address _asset) external onlyAdmin {
+    function setAsset(address _asset) external onlyUpgrader {
         require(_asset != address(0), "Zero address not allowed");
-        usdc = IERC20(_asset);
+        asset = IERC20(_asset);
         emit AssetUpdated(_asset);
     }
 
-    function setPortfolioManager(address _portfolioManager) external onlyAdmin {
+    function setPortfolioManager(address _portfolioManager) external onlyUpgrader {
         require(_portfolioManager != address(0), "Zero address not allowed");
         portfolioManager = IPortfolioManager(_portfolioManager);
         emit PortfolioManagerUpdated(_portfolioManager);
     }
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
     }
 
-    function setInsurance(address _insurance) external onlyAdmin {
+    function setInsurance(address _insurance) external onlyUpgrader {
         require(_insurance != address(0), "Zero address not allowed");
         insurance = _insurance;
         emit InsuranceUpdated(_insurance);
     }
 
-    function setBlockGetter(address _blockGetter) external onlyAdmin {
+    function setBlockGetter(address _blockGetter) external onlyUpgrader {
         require(_blockGetter != address(0), "Zero address not allowed");
         blockGetter = _blockGetter;
         emit BlockGetterUpdated(_blockGetter);
     }
 
-    function setProfitRecipient(address _profitRecipient) external onlyAdmin {
+    function setProfitRecipient(address _profitRecipient) external onlyUpgrader {
         require(_profitRecipient != address(0), "Zero address not allowed");
         profitRecipient = _profitRecipient;
         emit ProfitRecipientUpdated(_profitRecipient);
@@ -254,15 +270,17 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function pause() public onlyPortfolioAgent {
         _pause();
+        emit Paused();
     }
 
     function unpause() public onlyPortfolioAgent {
         _unpause();
+        emit Unpaused();
     }
 
     struct MintParams {
-        address asset;  // USDC
-        uint256 amount; // amount asset
+        address asset;
+        uint256 amount;
     }
 
     // Minting xUSD in exchange for an asset
@@ -271,9 +289,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         address _asset = params.asset;
         uint256 _amount = params.amount;
 
-        require(_asset == address(usdc), "Only asset available for buy");
+        require(_asset == address(asset), "Only asset available for buy");
 
-        uint256 currentBalance = usdc.balanceOf(msg.sender);
+        uint256 currentBalance = asset.balanceOf(msg.sender);
         require(currentBalance >= _amount, "Not enough tokens to buy");
 
         require(_amount > 0, "Amount of asset is zero");
@@ -281,9 +299,9 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         uint256 xusdAmount = _assetToRebase(_amount);
         require(xusdAmount > 0, "Amount of xUSD is zero");
 
-        uint256 _targetBalance = usdc.balanceOf(address(portfolioManager)) + _amount;
-        SafeERC20.safeTransferFrom(usdc, msg.sender, address(portfolioManager), _amount);
-        require(usdc.balanceOf(address(portfolioManager)) == _targetBalance, 'pm balance != target');
+        uint256 _targetBalance = asset.balanceOf(address(portfolioManager)) + _amount;
+        SafeERC20.safeTransferFrom(asset, msg.sender, address(portfolioManager), _amount);
+        require(asset.balanceOf(address(portfolioManager)) == _targetBalance, 'pm balance != target');
 
         portfolioManager.deposit();
         _requireOncePerBlock(false);
@@ -305,7 +323,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * @return Amount of asset unstacked and transferred to caller
      */
     function redeem(address _asset, uint256 _amount) external whenNotPaused nonReentrant returns (uint256) {
-        require(_asset == address(usdc), "Only asset available for redeem");
+        require(_asset == address(asset), "Only asset available for redeem");
         require(_amount > 0, "Amount of xUSD is zero");
         require(xusd().balanceOf(msg.sender) >= _amount, "Not enough tokens to redeem");
 
@@ -320,11 +338,10 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         (, bool isBalanced) = portfolioManager.withdraw(redeemAmount);
         _requireOncePerBlock(isBalanced);
 
-        // Or just burn from sender
         xusd().burn(msg.sender, _amount);
 
-        require(usdc.balanceOf(address(this)) >= redeemAmount, "Not enough for transfer redeemAmount");
-        SafeERC20.safeTransfer(usdc, msg.sender, redeemAmount);
+        require(asset.balanceOf(address(this)) >= redeemAmount, "Not enough for transfer redeemAmount");
+        SafeERC20.safeTransfer(asset, msg.sender, redeemAmount);
 
         emit EventExchange("redeem", redeemAmount, redeemFeeAmount, msg.sender);
 
@@ -351,8 +368,11 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * @param swapData - Odos swap data for swapping OVN->asset or asset->OVN in Insurance
      */
     function payout(bool simulate, IInsuranceExchange.SwapData memory swapData) payable external whenNotPaused onlyUnit nonReentrant {
-        
-        require(address(payoutManager()) != address(0) || xusd().nonRebaseOwnersLength() == 0, "Need to specify payoutManager address");
+
+        IXusdToken _xusd = xusd();
+        IPayoutManager _payoutManager = payoutManager();
+
+        require(address(_payoutManager) != address(0) || _xusd.nonRebaseOwnersLength() == 0, "Need to specify payoutManager address");
         require(block.timestamp + payoutTimeRange >= nextPayoutTime, "payout not ready");
 
         // 0. call claiming reward and balancing on PM
@@ -363,7 +383,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         portfolioManager.claimAndBalance();
 
-        uint256 totalXusd = xusd().totalSupply();
+        uint256 totalXusd = _xusd.totalSupply();
         uint256 previousXusd = totalXusd;
 
         uint256 totalNav = _assetToRebase(portfolioManager.totalNetAssets());
@@ -384,13 +404,13 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             uint256 oracleLossAmount = totalXusd * oracleLoss / oracleLossDenominator;
 
             if (loss <= oracleLossAmount) {
-                revert('OracleLoss');
+                revert OracleLoss();
             } else {
                 loss += totalXusd * compensateLoss / compensateLossDenominator;
                 loss = _rebaseToAsset(loss);
                 if (simulate) {
                     emit PayoutSimulationForInsurance(-int256(loss));
-                    revert("simulation revert");
+                    revert SimilationRevert();
                 }
                 if (swapData.amountIn != 0) {
                     IInsuranceExchange(insurance).compensate(swapData, loss, address(portfolioManager));
@@ -408,7 +428,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
                 require(profitRecipient != address(0), 'profitRecipient address is zero');
                 uint256 profitRecipientAmount = (totalNav - totalXusd) * profitFee / profitFeeDenominator;
                 portfolioManager.withdraw(profitRecipientAmount);
-                SafeERC20.safeTransfer(usdc, profitRecipient, profitRecipientAmount);                
+                SafeERC20.safeTransfer(asset, profitRecipient, profitRecipientAmount);                
                 totalNav = totalNav - _assetToRebase(profitRecipientAmount);
             }
 
@@ -416,29 +436,29 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
             if (simulate) {
                 emit PayoutSimulationForInsurance(int256(premium));
-                revert("simulation revert");
+                revert SimilationRevert();
             }
 
             if (premium > 0 && swapData.amountIn != 0) {
                 portfolioManager.withdraw(premium);
-                SafeERC20.safeTransfer(usdc, insurance, premium);
+                SafeERC20.safeTransfer(asset, insurance, premium);
 
                 IInsuranceExchange(insurance).premium(swapData, premium);
                 totalNav = totalNav - _assetToRebase(premium);
             }
 
-            delta = totalNav * LIQ_DELTA_DM / xusd().totalSupply();
+            delta = totalNav * LIQ_DELTA_DM / _xusd.totalSupply();
 
             if (abroadMax < delta) {
                 // Calculate the amount of xUSD to hit the maximum delta.
                 // We send the difference to the OVN wallet.
 
                 uint256 newTotalSupply = totalNav * LIQ_DELTA_DM / abroadMax;
-                excessProfit = newTotalSupply - xusd().totalSupply();
+                excessProfit = newTotalSupply - _xusd.totalSupply();
 
                 // Mint xUSD to OVN wallet
                 require(profitRecipient != address(0), 'profitRecipient address is zero');
-                xusd().mint(profitRecipient, excessProfit);
+                _xusd.mint(profitRecipient, excessProfit);
             }
         }
 
@@ -446,7 +466,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         // - totalXusd
         // - totalNav
 
-        totalXusd = xusd().totalSupply();
+        totalXusd = _xusd.totalSupply();
         totalNav = _assetToRebase(portfolioManager.totalNetAssets());
         uint256 newDelta = totalNav * LIQ_DELTA_DM / totalXusd;
 
@@ -457,16 +477,16 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         uint256 expectedTotalXusd = previousXusd + profit + excessProfit;
 
-        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = xusd().changeSupply(totalNav);
+        (NonRebaseInfo [] memory nonRebaseInfo, uint256 nonRebaseDelta) = _xusd.changeSupply(totalNav);
 
         // notify listener about payout done
-        if (address(payoutManager()) != address(0)) {
-            xusd().mint(address(payoutManager()), nonRebaseDelta);
-            payoutManager().payoutDone(address(xusd()), nonRebaseInfo);
+        if (address(_payoutManager) != address(0)) {
+            _xusd.mint(address(_payoutManager), nonRebaseDelta);
+            _payoutManager.payoutDone(address(_xusd), nonRebaseInfo);
         }
 
-        require(xusd().totalSupply() == totalNav, 'total != nav');
-        require(xusd().totalSupply() == expectedTotalXusd, 'total != expected');
+        require(_xusd.totalSupply() == totalNav, 'total != nav');
+        require(_xusd.totalSupply() == expectedTotalXusd, 'total != expected');
 
         remoteHub.execMultiPayout{value: address(this).balance}(newDelta);
 
@@ -493,7 +513,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         IPortfolioManager.StrategyWeight[] memory weights = portfolioManager.getAllStrategyWeights();
         uint256 count = weights.length;
 
-        for (uint8 i = 0; i < count; i++) {
+        for (uint8 i = 0; i < count; ++i) {
             IPortfolioManager.StrategyWeight memory weight = weights[i];
             IStrategy strategy = IStrategy(weight.strategy);
 
@@ -514,7 +534,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
         // https://developer.arbitrum.io/time#case-study-multicall
         uint256 blockNumber = Multicall2(0x842eC2c7D803033Edf55E478F461FC547Bc54EB2).getBlockNumber();
 
-        bool isFreeRider = roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender);
+        IRoleManager _roleManager = roleManager();
+        bool isFreeRider = _roleManager.hasRole(_roleManager.FREE_RIDER_ROLE(), msg.sender);
 
         // Flag isBalanced take about:
         // PortfolioManager run balance function and unstake liquidity from non cash strategies
@@ -539,7 +560,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
             feeDenominator = redeemFeeDenominator;
         }
 
-        bool isFreeRider = roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender);
+        IRoleManager _roleManager = roleManager();
+        bool isFreeRider = _roleManager.hasRole(_roleManager.FREE_RIDER_ROLE(), msg.sender);
 
         uint256 feeAmount = isFreeRider ? 0 : (_amount * fee) / feeDenominator;
         uint256 resultAmount = _amount - feeAmount;
@@ -549,7 +571,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function _rebaseToAsset(uint256 _amount) internal view returns (uint256) {
 
-        uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
+        uint256 assetDecimals = IERC20Metadata(address(asset)).decimals();
         uint256 xusdDecimals = xusd().decimals();
         if (assetDecimals > xusdDecimals) {
             _amount = _amount * (10 ** (assetDecimals - xusdDecimals));
@@ -562,7 +584,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function _assetToRebase(uint256 _amount) internal view returns (uint256) {
 
-        uint256 assetDecimals = IERC20Metadata(address(usdc)).decimals();
+        uint256 assetDecimals = IERC20Metadata(address(asset)).decimals();
         uint256 xusdDecimals = xusd().decimals();
         if (assetDecimals > xusdDecimals) {
             _amount = _amount / (10 ** (assetDecimals - xusdDecimals));
@@ -576,7 +598,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy() public {
+    function afterRedeploy() public onlyPortfolioAgent {
         reentrancyGuardStatus = _NOT_ENTERED;
         profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
         blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;
