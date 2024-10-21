@@ -71,6 +71,17 @@ type ContractFactoryTypes = {
     RemoteHubUpgrader: RemoteHubUpgrader__factory;
 }
 
+type MultichainCallItem = {
+    chainSelector: string;
+    receiver: string;
+    token: string;
+    amount: number;
+    batchData: {
+        executor: string;
+        data: string;
+    }[];
+}
+
 type ThreeContracts = [Contracts | undefined, Contracts | undefined, Contracts | undefined];
 
 let contracts: ThreeContracts = [undefined, undefined, undefined];
@@ -163,7 +174,7 @@ async function getContract<T extends keyof ContractTypes>(name: string, networkN
             throw new Error(`Contract file not found for ${name} on ${networkName}`);
         }
         const contractJson = JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
-        return await ethers.getContractAt(contractJson.abi, contractJson.address) as ContractTypes[T];
+        return await ethers.getContractAt(contractJson.abi, contractJson.address) as unknown as ContractTypes[T];
     } catch (error: unknown) {
         throw error;
     }
@@ -173,7 +184,7 @@ async function getContractFactory<T extends keyof ContractFactoryTypes>(contract
 
     let factory;
     try {
-        factory = await ethers.getContractFactory(contractName, initParams) as ContractFactoryTypes[T];
+        factory = await ethers.getContractFactory(contractName, initParams) as unknown as ContractFactoryTypes[T];
     } catch (error) {
         throw error;
     }
@@ -372,7 +383,7 @@ async function initDeploySet(chainType: ChainType) {
         params: [dev5]
     });
 
-    await transferETH(1, dev5Signer);
+    await transferETH(1, dev5Signer.address);
 
     if (chainType == ChainType.SOURCE) {
         await (exchange as ExchangeMother).connect(dev5Signer).afterRedeploy();
@@ -482,7 +493,7 @@ async function applyMessage(_to: ChainType, multichainCallItems: any, iter: numb
     await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 }
 
-async function multichainCallLocal(S: Contracts, D: Contracts, multichainCallItems: any): Promise<any[]> {
+async function multichainCallLocal(S: Contracts, D: Contracts, multichainCallItems: MultichainCallItem[]): Promise<any> {
 
     await initDeploySet(ChainType.SOURCE);
 
@@ -501,11 +512,7 @@ async function multichainCallLocal(S: Contracts, D: Contracts, multichainCallIte
     if (!receipt) throw new Error("Transaction failed");
 
     const events = receipt.logs.map(log => {
-        try {
-            return S.remoteHub.target === multichainCallItems[0].receiver ? S.remoteHub.interface.parseLog(log) : S.remoteHubUpgrader.interface.parseLog(log);
-        } catch (e) {
-            return null;
-        }
+        return S.remoteHub.target === multichainCallItems[0].receiver ? S.remoteHub.interface.parseLog(log) : S.remoteHubUpgrader.interface.parseLog(log);
     }).filter(event => event !== null);
 
     return events;
@@ -637,7 +644,7 @@ async function payoutTest(_to: ChainType, _to2: ChainType) {
     console.log(`totalSupply after:`, after2);
 }
 
-async function makeUpgradeToData(newImpl: string, receiver: string, executor: string, chainType: ChainType) {
+async function makeUpgradeToData(newImpl: string, receiver: string, executor: string, chainType: ChainType): Promise<MultichainCallItem[]> {
     const signature = 'upgradeTo(address)';
     const params = [newImpl];
     const encoded = encodeWithSignature(signature, params);
@@ -774,16 +781,16 @@ async function main() {
 
     await initAllAddresses();
 
-    await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
+    // await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
     // await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2); //neok
 
-    // expect(await upgradeTest("Market", "remote")).to.equal(true);
-    // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
-    // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
+    expect(await upgradeTest("Market", "remote")).to.equal(true);
+    expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
+    expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
 
-    // expect(await upgradeTest("Market", "local")).to.equal(true);
-    // expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
-    // expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
+    expect(await upgradeTest("Market", "local")).to.equal(true);
+    expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
+    expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
 
     // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
     // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);

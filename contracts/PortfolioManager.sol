@@ -117,12 +117,20 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     // ---  setters
 
+    /**
+     * @dev Sets the remote hub address.
+     * @param _remoteHub Address of the new remote hub.
+     */
     function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
     }
 
+    /**
+     * @dev Sets the asset address.
+     * @param _asset Address of the new asset.
+     */
     function setAsset(address _asset) public onlyUpgrader {
         require(_asset != address(0), "Zero address not allowed");
 
@@ -130,12 +138,20 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         emit AssetUpdated(_asset);
     }
 
+    /**
+     * @dev Sets the NAV slippage in basis points.
+     * @param _navSlippageBp New NAV slippage value in basis points.
+     */
     function setNavSlippageBp(uint256 _navSlippageBp) public onlyPortfolioAgent {
         require(_navSlippageBp <= 10000, "Nav slippage bp should be less 100% (10000)");
         navSlippageBp = _navSlippageBp;
         emit NavSlippageBpUpdated(navSlippageBp);
     }
 
+    /**
+     * @dev Sets the cash strategy address.
+     * @param _cashStrategy Address of the new cash strategy.
+     */
     function setCashStrategy(address _cashStrategy) public onlyUpgrader {
         require(_cashStrategy != address(0), "Zero address not allowed");
 
@@ -165,6 +181,10 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     // ---  logic
 
+    /**
+     * @dev Deposits assets into the cash strategy.
+     * @notice Can only be called by the exchanger role.
+     */
     function deposit() external override onlyExchanger cashStrategySet {
 
         uint256 pmAssetBalance = asset.balanceOf(address(this));
@@ -183,6 +203,11 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     }
 
+    /**
+     * @dev Withdraws assets from the portfolio.
+     * @param _amount Amount of assets to withdraw.
+     * @return Tuple containing the withdrawn amount and a boolean indicating if balancing occurred.
+     */
     function withdraw(uint256 _amount) external override onlyExchanger cashStrategySet returns (uint256, bool) {
 
         // if cash strategy has enough liquidity then prevent balancing
@@ -211,6 +236,10 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         return (_amount, isBalanced);
     }
 
+    /**
+     * @dev Claims rewards and balances the portfolio.
+     * @notice Can only be called by the exchanger role.
+     */
     function claimAndBalance() external override onlyExchanger {
         _claimRewards();
         emit ClaimRewards();
@@ -218,11 +247,19 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         emit Balance();
     }
 
+    /**
+     * @dev Balances the portfolio.
+     * @notice Can only be called by the portfolio agent role.
+     */
     function balance() public override onlyPortfolioAgent {
         _balance();
         emit Balance();
     }
 
+    /**
+     * @dev Sets the weights for all strategies.
+     * @param _strategyWeights Array of new strategy weights.
+     */
     function setStrategyWeights(StrategyWeight[] calldata _strategyWeights) external onlyPortfolioAgent {
 
         require(_strategyWeights.length == strategyWeights.length, 'Wrong number of strategies');
@@ -273,6 +310,10 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
 
     }
 
+    /**
+     * @dev Adds a new strategy to the portfolio.
+     * @param _strategy Address of the new strategy to add.
+     */
     function addStrategy(address _strategy) external onlyUpgrader {
 
         for (uint8 i = 0; i < strategyWeights.length; ++i) {
@@ -293,6 +334,10 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
         strategyWeightPositions[strategyWeight.strategy] = index;
     }
 
+    /**
+     * @dev Removes a strategy from the portfolio.
+     * @param _strategy Address of the strategy to remove.
+     */
     function removeStrategy(address _strategy) external onlyUpgrader {
 
         uint256 index = strategyWeightPositions[_strategy];

@@ -9,12 +9,21 @@ import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/securit
 import { IRemoteHub, IXusdToken, IPayoutManager, IRoleManager } from "./interfaces/IRemoteHub.sol";
 import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
 
+/**
+ * @title ExchangeChild
+ * @notice Manages the exchange and payout process for XUSD tokens
+ * @dev Inherits from Initializable, AccessControlUpgradeable, UUPSUpgradeable, and PausableUpgradeable
+ */
 contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     uint256 public constant LIQ_DELTA_DM = 1e6;
 
+    /** @notice New delta value for payout calculations */
     uint256 public newDelta;
+    /** @notice Deadline for payout execution */
     uint256 public payoutDeadline;
+    /** @notice Time delta for payout deadline */
     uint256 public payoutDelta;
+    /** @notice Interface for the RemoteHub contract */
     IRemoteHub public remoteHub;
 
     // --- events
@@ -35,6 +44,10 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         return keccak256("UPGRADER_ROLE");
     }
 
+    /**
+     * @notice Initializes the contract
+     * @param _remoteHub Address of the RemoteHub contract
+     */
     function initialize(address _remoteHub) public initializer {
         __AccessControl_init();
         __Pausable_init();
@@ -89,6 +102,9 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     // --- logic
 
+    /**
+     * @notice Executes the payout process
+     */
     function payout() public {
         require(newDelta > 0, "new delta is not ready");
         require(_isUnit() || payoutDeadline >= block.timestamp, "You are not Unit or timestamp is not ready.");
@@ -112,6 +128,10 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         emit PayoutShortEvent(newDelta, nonRebaseDelta);
     }
 
+    /**
+     * @notice Initiates a payout with a new delta value
+     * @param _newDelta New delta value for the payout
+     */
     function payout(uint256 _newDelta) external onlyUpgrader {
         require(_newDelta > LIQ_DELTA_DM, "Negative rebase");
 
@@ -125,6 +145,10 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         }
     }
 
+    /**
+     * @notice Checks if the caller has the UNIT_ROLE
+     * @return bool True if the caller has the UNIT_ROLE, false otherwise
+     */
     function _isUnit() internal view returns (bool) {
         return roleManager().hasRole(roleManager().UNIT_ROLE(), msg.sender);
     }
