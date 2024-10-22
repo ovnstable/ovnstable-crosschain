@@ -198,6 +198,12 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
      * @param amount The amount of shares to burn
      */
     function burn(uint256 amount) external whenNotPaused onlyCCIP {
+        uint256 xusdBalance = xusd().balanceOf(address(this));
+        uint256 totalSupplyInXusd = _convertToAssetsDown(totalSupply());
+        uint256 totalSupplyInXusdAfterBurn = _convertToAssetsDown(totalSupply() - amount);
+        uint256 delta1 = totalSupplyInXusd < xusdBalance ? xusdBalance - totalSupplyInXusd : totalSupplyInXusd - xusdBalance;
+        uint256 delta2 = totalSupplyInXusdAfterBurn < xusdBalance ? xusdBalance - totalSupplyInXusdAfterBurn : totalSupplyInXusdAfterBurn - xusdBalance;  
+        require(delta1 > delta2, "ccip transfer forbidden");
         _burn(msg.sender, amount);
     }
 

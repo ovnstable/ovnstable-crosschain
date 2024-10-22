@@ -90,7 +90,7 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 265742422,
+        BLOCK_NUMBER: 266295768,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: "4949039107694359620",
         ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
@@ -288,7 +288,7 @@ async function deployOrUpgrade(contractName: string, initParams: any, contrParam
     });
 
     const timelockAccount = await ethers.getSigner(imper);
-    await transferETH(10, imper);
+    await transferETH(1, imper);
     await proxy.connect(timelockAccount).upgradeTo(newImpl);
 
     let new2Impl = await getImplementationAddress(ethers.provider, proxy.target);
@@ -339,7 +339,7 @@ async function initDeploySet(chainType: ChainType) {
     let richSigner = await ethers.getSigner(wxusdRich);
 
     // deploy all contracts (or redeploy)
-    let remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, ganache)) as RemoteHub;
+    let remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector, chain[ChainType.SOURCE].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, ganache)) as RemoteHub;
     let remoteHubUpgrader = (await deployOrUpgrade("RemoteHubUpgrader", [chain[chainType].chainSelector], [chain[chainType].ccipRouterAddress, remoteHub.target], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, ganache)) as RemoteHubUpgrader;
     let exchange = (await deployOrUpgrade(chainType == ChainType.SOURCE ? "ExchangeMother" : "ExchangeChild", [remoteHub.target], [], [], chain[chainType].NAME, timelock)) as ExchangeMother | ExchangeChild;
     let market = (await deployOrUpgrade("Market", [ganache], [], [], chain[chainType].NAME, timelock)) as Market;
@@ -348,6 +348,28 @@ async function initDeploySet(chainType: ChainType) {
     let xusdToken = (await deployOrUpgrade("XusdToken", ["xUSD", "xUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, timelock)) as XusdToken;
     let wrappedXusdToken = (await deployOrUpgrade("WrappedXusdToken", ["Wrapped xUSD", "wxUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, chainType == ChainType.SOURCE ? timelock : dev4)) as WrappedXusdToken;
     let payoutManager = (await deployOrUpgrade(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : chainType == ChainType.DESTINATION ? "OptimismPayoutManager" : "EthereumPayoutManager", [remoteHub.target, rewardWallet], [], [], chain[chainType].NAME, dev1)) as PayoutManager;
+
+    await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [dev5]
+    });
+    await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [wxusdRich]
+    });
+    await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [remoteHub.target]
+    });
+    await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [timelock]
+    });
+
+    await transferETH(1, dev5Signer.address);
+    await transferETH(1, remoteHub.target as string);
+    await transferETH(1, timelock);
+    await transferETH(1, dev4);
 
     await exchange.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
     await market.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
@@ -378,28 +400,18 @@ async function initDeploySet(chainType: ChainType) {
         ccipPool: chain[chainType].ccipPool
     });
 
-    await hre.network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [dev5]
-    });
-
-    await transferETH(1, dev5Signer.address);
-
     if (chainType == ChainType.SOURCE) {
         await (exchange as ExchangeMother).connect(dev5Signer).afterRedeploy();
         await portfolioManager.connect(dev5Signer).afterRedeploy();
         await xusdToken.connect(dev5Signer).afterRedeploy(0);
         await wrappedXusdToken.connect(dev5Signer).afterRedeploy(remoteHub.target);
-
-        await hre.network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: [wxusdRich],
-        });
-
         await wrappedXusdToken.connect(richSigner).transfer(chain[ChainType.SOURCE].ccipPool, 100000000);
         chain[chainType].liqIndex = (await xusdToken.rebasingCreditsPerTokenHighres()).toString();
     } else {
         await roleManager.connect(signer).grantRole(Roles.PORTFOLIO_AGENT_ROLE, dev5Signer);
+        const hub = await hre.ethers.getSigner(remoteHub.target as string);
+        await xusdToken.connect(hub).mint(wrappedXusdToken.target, "1000000");
+        await wrappedXusdToken.connect(dev4Signer).redeem(1000000, dev4Signer.address, dev4Signer.address);
         await xusdToken.connect(dev5Signer).afterRedeploy(chain[0].liqIndex);
     }
 
@@ -473,11 +485,6 @@ async function applyMessage(_to: ChainType, multichainCallItems: any, iter: numb
 
     await initDeploySet(ChainType.SOURCE);
 
-    await hre.network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [timelock],
-    });
-
     let tx = await (contracts[ChainType.SOURCE] as Contracts).remoteHub.connect(await ethers.getSigner(timelock)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
 
     // console.log("Transaction hash: ", tx.hash);
@@ -496,11 +503,6 @@ async function applyMessage(_to: ChainType, multichainCallItems: any, iter: numb
 async function multichainCallLocal(S: Contracts, D: Contracts, multichainCallItems: MultichainCallItem[]): Promise<any> {
 
     await initDeploySet(ChainType.SOURCE);
-
-    await hre.network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [timelock],
-    });
 
     let tx;
     if (S.remoteHub.target === multichainCallItems[0].receiver) {
@@ -725,20 +727,8 @@ async function getXUSD(account: string, amount: string, chainType: ChainType) {
     let xusd = contracts[chainType]?.xusdToken as XusdToken;
     let hubAddress = (contracts[chainType] as Contracts).remoteHub.target as string;
 
-    await transferETH(1, hubAddress);
-
-    await hre.network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [hubAddress],
-    });
-
     const hub = await hre.ethers.getSigner(hubAddress);
     await xusd.connect(hub).mint(account, amount);
-
-    await hre.network.provider.request({
-        method: "hardhat_stopImpersonatingAccount",
-        params: [hubAddress],
-    });
 }
 
 async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> {
@@ -749,8 +739,8 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
 
     let direct: boolean = _from === ChainType.SOURCE;
 
-    let sender = direct ? timelock : "0xcd8562CD85fD93C7e2E80B4Cf69097E5562a76f9";
-    let receiver = "0x086dFe298907DFf27BD593BD85208D57e0155c94";
+    let sender = direct ? timelock : dev4;
+    let receiver = dev5;
     let onexUsd = "1000000";
 
     let signer = await ethers.getSigner(sender);
@@ -768,7 +758,6 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
     // if (!evm2EvmMessage) return; 
 
     await initDeploySet(_to);
-    await transferETH(10, timelock);
 
     await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 
@@ -781,8 +770,8 @@ async function main() {
 
     await initAllAddresses();
 
-    // await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
-    // await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2); //neok
+    await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
+    await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2);
 
     expect(await upgradeTest("Market", "remote")).to.equal(true);
     expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
@@ -792,9 +781,9 @@ async function main() {
     expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
     expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
 
-    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
-    // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
-    // expect(await transferTest(ChainType.DESTINATION, ChainType.DESTINATION2)).to.equal(true);
+    expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
+    expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
+    expect(await transferTest(ChainType.DESTINATION, ChainType.DESTINATION2)).to.equal(true);
 }
 
 main().catch((error) => {

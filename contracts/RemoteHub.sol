@@ -49,6 +49,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     mapping(uint64 => ChainItem) public chainItemById;
     mapping(uint64 => mapping(address => bool)) public allowlistedDestinationAddresses;
     uint64 public chainSelector;
+    uint64 public sourceChainSelector;
     uint256 public ccipGasLimit;
 
     // ---  events
@@ -106,13 +107,14 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      * @notice Initializes the contract
      * @param _chainSelector The chain selector for this contract
      */
-    function initialize(uint64 _chainSelector) initializer public {
+    function initialize(uint64 _chainSelector, uint64 _sourceChainSelector) initializer public {
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE(), msg.sender);
         chainSelector = _chainSelector;
+        sourceChainSelector = _sourceChainSelector;
         ccipGasLimit = 500_000;
     }
 
@@ -445,7 +447,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      * @param newDelta The new delta value for the payout
      */
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
-        require(chainItems[0].chainSelector == chainSelector, "first chainItems element should be motherchain");
+        require(sourceChainSelector == chainSelector, "first chainItems element should be motherchain");
         for (uint256 i = 1; i < chainItems.length; ++i) {
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
@@ -475,18 +477,16 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
     payable public {
         IXusdToken _xusd = xusd();
         IWrappedXusdToken _wxusd = wxusd();
-        bool isSMotherChain = chainSelector == chainItems[0].chainSelector;
-        bool isDMotherChain = _destinationChainSelector == chainItems[0].chainSelector;
         IERC20(address(_xusd)).safeTransferFrom(msg.sender, address(this), _amount);
         _xusd.approve(address(chainItemById[chainSelector].market), _xusd.balanceOf(address(this)));
         IMarket(chainItemById[chainSelector].market).wrap(address(_xusd), _xusd.balanceOf(address(this)), address(this));
 
-        if (!isSMotherChain) {
-            IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
+        if (chainSelector != sourceChainSelector) {
+            // IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
         }
 
-        DataCallItem[] memory dataCallItems = new DataCallItem[](isDMotherChain ? 2 : 3);
-        if (isDMotherChain) {
+        DataCallItem[] memory dataCallItems = new DataCallItem[](_destinationChainSelector == sourceChainSelector ? 2 : 3);
+        if (_destinationChainSelector == sourceChainSelector) {
             dataCallItems[0] = DataCallItem({
                 executor: chainItemById[_destinationChainSelector].wxusd,
                 data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
