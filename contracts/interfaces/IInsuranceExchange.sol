@@ -6,7 +6,6 @@ interface Multicall2 {
 }
 
 interface IInsuranceExchange {
-
     struct SwapData {
         address inputTokenAddress;
         address outputTokenAddress;
@@ -35,6 +34,4 @@ interface IInsuranceExchange {
     function requestWithdraw() external;
 
     function checkWithdraw() external;
-
-
 }

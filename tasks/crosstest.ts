@@ -3,8 +3,6 @@ import * as fs from 'fs';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 
-
-
 const {
     TASK_NODE,
     TASK_COMPILE,
@@ -20,7 +18,6 @@ async function createFolder(folderPath: string) {
         console.error(`Error creating folder: ${err}`);
     }
 }
-
 
 async function copyFolder(source: string, destination: string) {
     try {
@@ -45,7 +42,6 @@ function deleteFolderRecursive(folderPath: string) {
     }
 }
 
-
 task("node2", 'Starts a JSON-RPC server on top of Hardhat EVM')
 	.addParam("src", "The account's address")
 	.addParam("dest1", "The account's address")
@@ -65,6 +61,4 @@ task("node2", 'Starts a JSON-RPC server on top of Hardhat EVM')
 			...taskArgs,
 			network: "hardhat",
 		});
-
-
     });

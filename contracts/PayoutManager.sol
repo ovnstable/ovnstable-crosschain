@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/IRemoteHub.sol";
+import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager} from "./interfaces/IRemoteHub.sol";
+import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 
 interface IBribe {
     function notifyRewardAmount(address token, uint amount) external;
 }
 
 abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+
+    using SafeERC20 for IERC20;
 
     struct Item {
         // Unique ID = pool + token
@@ -50,20 +53,28 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
     event PayoutDoneDisabled();
     event RewardWalletUpdated(address rewardWallet);
     event RemoteHubUpdated(address remoteHub);
+    error ItemNotFound();
+    error PayoutManagerDisabled();
+    error CustomNotImplemented();
 
     // ---  initializer
 
-    function __PayoutManager_init(address _remoteHub, address _rewardWallet) internal initializer {
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
+    }
+
+    function __PayoutManager_init(address _remoteHub, address _rewardWallet) internal onlyInitializing {
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
 
         rewardWallet = _rewardWallet;
         remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal onlyRole(DEFAULT_ADMIN_ROLE) override {}
+    function _authorizeUpgrade(address newImplementation) internal onlyUpgrader override {}
 
     // ---  remoteHub getters
 
@@ -73,10 +84,10 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
 
     // ---  modifiers
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-        _;
-    }
+    // modifier onlyAdmin() {
+    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
+    //     _;
+    // }
 
     modifier onlyExchanger() {
         require(hasRole(roleManager().EXCHANGER(), msg.sender), "Caller doesn't have EXCHANGER role");
@@ -88,6 +99,11 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         _;
     }
 
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
+        _;
+    }
+
     // --- setters
 
     function setDisabled(bool _disabled) external onlyUnit {
@@ -95,13 +111,13 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         emit DisabledUpdated(disabled);
     }
 
-    function setRewardWallet(address _rewardWallet) external onlyAdmin {
+    function setRewardWallet(address _rewardWallet) external onlyUpgrader {
         require(_rewardWallet != address(0), "Zero address not allowed");
         rewardWallet = _rewardWallet;
         emit RewardWalletUpdated(rewardWallet);
     }
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         require(_remoteHub != address(0), "Zero address not allowed");
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
@@ -128,7 +144,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
      */
     function findItemsByPool(address pool) external view returns (Item[] memory) {
         uint256 j;
-        for (uint256 x = 0; x < items.length; x++) {
+        for (uint256 x = 0; x < items.length; ++x) {
             if (items[x].pool == pool) {
                 j++;
             }
@@ -136,7 +152,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
 
         Item[] memory foundItems = new Item[](j);
         uint256 p = 0;
-        for (uint256 i = 0; i < items.length; i++) {
+        for (uint256 i = 0; i < items.length; ++i) {
             if (items[i].pool == pool) {
                 Item memory item = items[i];
                 foundItems[p] = item;
@@ -161,7 +177,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         }
 
         bool isNew = true;
-        for (uint256 x = 0; x < items.length; x++) {
+        for (uint256 x = 0; x < items.length; ++x) {
             Item memory exitItem = items[x];
 
             if (exitItem.token == item.token && exitItem.pool == item.pool) {
@@ -181,9 +197,9 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
     /**
      * Add new items to list or update exist items
      */
-    function addItems(Item[] memory items) external onlyUnit {
-        for (uint256 x = 0; x < items.length; x++) {
-            Item memory item = items[x];
+    function addItems(Item[] memory _items) external onlyUnit {
+        for (uint256 x = 0; x < _items.length; ++x) {
+            Item memory item = _items[x];
             addItem(item);
         }
     }
@@ -195,11 +211,11 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
         require(token != address(0), 'token is zero');
         require(pool != address(0), 'pool is zero');
 
-        for (uint256 x = 0; x < items.length; x++) {
+        for (uint256 x = 0; x < items.length; ++x) {
             Item memory exitItem = items[x];
 
             if (exitItem.token == token && exitItem.pool == pool) {
-                for (uint i = x; i < items.length - 1; i++) {
+                for (uint i = x; i < items.length - 1; ++i) {
                     Item memory tempItem = items[i + 1];
                     items[i] = tempItem;
                 }
@@ -210,7 +226,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
             }
         }
 
-        revert('item not found');
+        revert ItemNotFound();
     }
 
     /**
@@ -218,7 +234,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
      */
     function removeItems() external onlyUnit {
         uint256 length = items.length;
-        for (uint256 x = 0; x < length; x++) {
+        for (uint256 x = 0; x < length; ++x) {
             Item memory item = items[length - x - 1];
             items.pop();
             IXusdToken(item.token).rebaseOptIn(item.pool);
@@ -232,17 +248,17 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
     function payoutDone(address token, NonRebaseInfo [] memory nonRebaseInfo) external virtual override onlyExchanger {
 
         if (disabled) {
-            revert('PayoutManager disabled');
+            revert PayoutManagerDisabled();
         }
 
-        for (uint256 i = 0; i < items.length; i++) {
+        for (uint256 i = 0; i < items.length; ++i) {
 
             Item memory item = items[i];
             if (item.token != token) {
                 continue;
             }
 
-            for (uint256 j = 0; j < nonRebaseInfo.length; j++) {
+            for (uint256 j = 0; j < nonRebaseInfo.length; ++j) {
 
                 NonRebaseInfo memory info = nonRebaseInfo[j];
                 if (item.pool != info.pool) {
@@ -273,12 +289,12 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
                 uint256 feeAmount = amountToken * item.feePercent / 100;
                 amountToken -= feeAmount;
                 if (feeAmount > 0) {
-                    token.transfer(item.feeReceiver, feeAmount);
+                    token.safeTransfer(item.feeReceiver, feeAmount);
                     emit PoolOperation(item.dexName, 'Skim', item.poolName, item.pool, item.token, feeAmount, item.feeReceiver);
                 }
             }
             if (amountToken > 0) {
-                token.transfer(item.to, amountToken);
+                token.safeTransfer(item.to, amountToken);
                 emit PoolOperation(item.dexName, 'Skim', item.poolName, item.pool, item.token, amountToken, item.to);
             }
         }
@@ -296,11 +312,12 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
                 uint256 feeAmount = amountToken * item.feePercent / 100;
                 amountToken -= feeAmount;
                 if (feeAmount > 0) {
-                    token.transfer(item.feeReceiver, feeAmount);
+                    token.safeTransfer(item.feeReceiver, feeAmount);
                     emit PoolOperation(item.dexName, 'Bribe', item.poolName, item.pool, item.token, feeAmount, item.feeReceiver);
                 }
             }
             if (amountToken > 0) {
+                token.approve(item.bribe, 0); // because of race condition fix
                 token.approve(item.bribe, amountToken);
                 IBribe(item.bribe).notifyRewardAmount(item.token, amountToken);
                 emit PoolOperation(item.dexName, 'Bribe', item.poolName, item.pool, item.token, amountToken, item.bribe);
@@ -313,7 +330,8 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
       * If standard skim/sync/bribe not allow use.
       */
     function _custom(NonRebaseInfo memory info, Item memory item) internal virtual {
-        revert("Custom not implemented");
+        revert CustomNotImplemented();
     }
 
+    uint256[50] private __gap;
 }

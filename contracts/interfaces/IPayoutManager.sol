@@ -8,7 +8,5 @@ struct NonRebaseInfo {
 }
 
 interface IPayoutManager {
-
-    function payoutDone(address _token, NonRebaseInfo [] memory nonRebaseInfo) external;
-
+    function payoutDone(address _token, NonRebaseInfo[] memory nonRebaseInfo) external;
 }

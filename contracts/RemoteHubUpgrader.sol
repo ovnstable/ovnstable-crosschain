@@ -6,23 +6,22 @@ import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.s
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable, IAccessControlUpgradeable, IERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/IRemoteHub.sol";
-import "hardhat/console.sol";
+import {IRemoteHub, IPayoutManager, IRoleManager, IExchange, IRemoteHubUpgrader} from "./interfaces/IRemoteHub.sol";
+import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 
-contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable {
-    using SafeERC20 for IERC20;
+contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradeable, UUPSUpgradeable, PausableUpgradeable, IRemoteHubUpgrader {
 
     address public constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     struct MultichainCallUpgradeItem {
         uint64 chainSelector;
         address receiver;
-        address newImplementation;
+        DataCallItem[] batchData;
     }
 
     struct DataCallItem {
@@ -43,6 +42,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     
     IRemoteHub public remoteHub;
 
+    uint64 public chainSelector;
     uint256 public ccipGasLimit;
 
     // ---  events
@@ -52,17 +52,17 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         bytes32 indexed messageId, // The unique ID of the CCIP message.
         uint64 indexed destinationChainSelector, // The chain selector of the destination chain.
         address receiver, // The address of the receiver on the destination chain.
-        address newImplementation,
+        bytes data, // The text being sent.
         address feeToken, // the token address used to pay CCIP fees.
         uint256 fees // The fees paid for sending the message.
     );
 
     // Event emitted when a message is received from another chain.
-    event UpgradeMessageReceived(
+    event MessageReceived(
         bytes32 indexed messageId, // The unique ID of the CCIP message.
         uint64 indexed sourceChainSelector, // The chain selector of the source chain.
         address sender, // The address of the sender from the source chain.
-        address data, // The text that was received.
+        DataCallItem[] data, // The text that was received.
         address token, // The token address that was transferred.
         uint256 tokenAmount // The token amount that was transferred.
     );
@@ -73,6 +73,10 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         bytes data
     );
 
+    event RemoteHubUpdated(address remoteHub);
+    event Paused();
+    event Unpaused();
+
     // ---  errors
 
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
@@ -82,30 +86,42 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
     error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
     error InvalidReceiverAddress(); // Used when the receiver address is 0.
-    event RemoteHubUpdated(address remoteHub);
+    error ExecutorIsTheSameContract();
 
     // ---  initializer
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _router, address _remoteHub) CCIPReceiver(_router) {
+        _disableInitializers();
         remoteHub = IRemoteHub(_remoteHub);
     }
 
-    function initialize() initializer public {
+    /**
+     * @notice Initializes the contract
+     * @param _chainSelector The chain selector for this contract
+     */
+    function initialize(uint64 _chainSelector) initializer public {
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE(), msg.sender);
+        chainSelector = _chainSelector;
         ccipGasLimit = 500_000;
     }
 
+    /**
+     * @notice Checks if the contract supports a given interface
+     * @param interfaceId The interface identifier
+     * @return bool True if the interface is supported
+     */
     function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
         return (interfaceId == type(IAccessControlUpgradeable).interfaceId) || 
                (interfaceId == type(IERC165Upgradeable).interfaceId) || 
                CCIPReceiver.supportsInterface(interfaceId);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
 
     // ---  remoteHub getters
 
@@ -150,41 +166,80 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     }
 
     modifier onlyPortfolioAgent() {
-        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), _msgSender()), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
+        require(roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender), "Caller doesn't have PORTFOLIO_AGENT_ROLE role");
         _;
     }
 
-    modifier onlyExchanger() {
-        require(address(exchange()) == _msgSender(), "Caller is not the EXCHANGER");
+    modifier onlyUpgrader() {
+        require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
         _;
+    }
+
+    function UPGRADER_ROLE() public pure returns(bytes32) {
+        return keccak256("UPGRADER_ROLE");
     }
 
     // --- setters
 
-    function setRemoteHub(address _remoteHub) external onlyAdmin {
+    /**
+     * @notice Pauses the contract
+     */
+    function pause() public onlyPortfolioAgent {
+        _pause();
+        emit Paused();
+    }
+
+    /**
+     * @notice Unpauses the contract
+     */
+    function unpause() public onlyPortfolioAgent {
+        _unpause();
+        emit Unpaused();
+    }
+
+    /**
+     * @notice Sets the RemoteHub address
+     * @param _remoteHub The new RemoteHub address
+     */
+    function setRemoteHub(address _remoteHub) external onlyUpgrader {
         remoteHub = IRemoteHub(_remoteHub);
         emit RemoteHubUpdated(_remoteHub);
     }
 
     // ---  logic
 
-    /// @dev Updates the allowlist status of a destination chain for transactions.
-    function allowlistDestinationChain(uint64 _destinationChainSelector, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a destination chain for transactions
+     * @param _destinationChainSelector The selector of the destination chain
+     * @param allowed The new allowlist status
+     */
+    function allowlistDestinationChain(uint64 _destinationChainSelector, bool allowed) external onlyUpgrader {
         allowlistedDestinationChains[_destinationChainSelector] = allowed;
     }
 
-    /// @dev Updates the allowlist status of a source chain for transactions.
-    function allowlistSourceChain(uint64 _sourceChainSelector, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a source chain for transactions
+     * @param _sourceChainSelector The selector of the source chain
+     * @param allowed The new allowlist status
+     */
+    function allowlistSourceChain(uint64 _sourceChainSelector, bool allowed) external onlyUpgrader {
         allowlistedSourceChains[_sourceChainSelector] = allowed;
     }
 
-    /// @dev Updates the allowlist status of a sender for transactions.
-    function allowlistSender(address _sender, bool allowed) external onlyAdmin {
+    /**
+     * @notice Updates the allowlist status of a sender for transactions
+     * @param _sender The address of the sender
+     * @param allowed The new allowlist status
+     */
+    function allowlistSender(address _sender, bool allowed) external onlyUpgrader {
         allowlistedSenders[_sender] = allowed;
     }
 
-    /// @dev Set new gasLimit for CCIP send
-    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyAdmin {
+    /**
+     * @notice Set new gasLimit for CCIP send
+     * @param _ccipGasLimit The new gas limit for CCIP transactions
+     */
+    function setCcipGasLimit(uint256 _ccipGasLimit) external onlyUpgrader {
         ccipGasLimit = _ccipGasLimit;
     }
 
@@ -196,31 +251,37 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(item);
         IRouterClient router = IRouterClient(this.getRouter());
         uint256 fees = router.getFee(item.chainSelector, evm2AnyMessage);
-        
+
         if (fees > address(this).balance)
             revert NotEnoughBalance(address(this).balance, fees);
 
         messageId = router.ccipSend{value: fees}(item.chainSelector, evm2AnyMessage);
-        
-        emit MessageSent(messageId, item.chainSelector, item.receiver, item.newImplementation, address(0), fees);
+        emit MessageSent(messageId, item.chainSelector, item.receiver, abi.encode(item.batchData), address(0), fees);
 
         return messageId;
     }
 
     /// handle a received message
     function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage) internal override
-        onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address)))
+        onlyAllowlisted(any2EvmMessage.sourceChainSelector, abi.decode(any2EvmMessage.sender, (address))) 
     {
-        address newImplementation = abi.decode(any2EvmMessage.data, (address));
-        (bool success, ) = address(remoteHub).call(abi.encodeWithSignature("upgradeTo(address)", newImplementation));
-        require(success, "Call failed");    
+        DataCallItem[] memory receivedData = abi.decode(any2EvmMessage.data, (DataCallItem[]));
+        for (uint i = 0; i < receivedData.length; ++i) {
+            if (receivedData[i].executor == address(this)) {
+                revert ExecutorIsTheSameContract();
+            } else {
+                (bool success, bytes memory data) = receivedData[i].executor.call(receivedData[i].data);
+                require(success, "Call failed");
+                emit CallExecuted(receivedData[i].executor, success, data);
+            }
+        }
 
-        emit UpgradeMessageReceived(
+        emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector,
             abi.decode(any2EvmMessage.sender, (address)),
-            abi.decode(any2EvmMessage.data, (address)),
-            any2EvmMessage.destTokenAmounts.length == 0 ? ZERO_ADDRESS : any2EvmMessage.destTokenAmounts[0].token,
+            abi.decode(any2EvmMessage.data, (DataCallItem[])),
+            any2EvmMessage.destTokenAmounts.length == 0 ? address(0) : any2EvmMessage.destTokenAmounts[0].token,
             any2EvmMessage.destTokenAmounts.length == 0 ? 0 : any2EvmMessage.destTokenAmounts[0].amount
         );
     }
@@ -230,7 +291,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encode(item.receiver),
-                data: abi.encode(item.newImplementation),
+                data: abi.encode(item.batchData),
                 tokenAmounts: new Client.EVMTokenAmount[](0),
                 extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: ccipGasLimit})),
                 feeToken: address(0)
@@ -239,22 +300,23 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
 
     receive() external payable {}
 
-    function upgradeRemoteHub(uint64 _chainSelector, address newImplementation) public payable onlyAdmin {
-        require(_chainSelector != remoteHub.chainSelector(), "Forbiden upgrade: use direct call");
-        
-        MultichainCallUpgradeItem memory multichainCallItem = MultichainCallUpgradeItem({
-            chainSelector: _chainSelector,
-            receiver: remoteHub.getChainItemById(_chainSelector).remoteHubUpgrader,
-            newImplementation: newImplementation
-        });
-    
-        _sendViaCCIP(multichainCallItem);
+    /**
+     * @notice Executes multiple cross-chain calls
+     * @param multichainCallItems An array of MultichainCallUpgradeItem structs representing the calls to be made
+     */
+    function multichainCall(MultichainCallUpgradeItem[] memory multichainCallItems) public payable whenNotPaused onlyAdmin {
+        for (uint256 i; i < multichainCallItems.length; ++i) {
+            if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver != address(this)) {
+            } else if (multichainCallItems[i].chainSelector == chainSelector && multichainCallItems[i].receiver == address(this)) {
+                for (uint j = 0; j < multichainCallItems[i].batchData.length; ++j) {
+                    (bool success, bytes memory data) = multichainCallItems[i].batchData[j].executor.call(multichainCallItems[i].batchData[j].data);
+                    require(success, "Call failed");
+                    emit CallExecuted(address(this), success, data);
+                }
+            } else {
+                _sendViaCCIP(multichainCallItems[i]);
+            }
+        }
     }
 
-    // --- testing
-    // delete after deploy
-
-    function checkUpgrading() public pure returns(bool) {
-        return false;
-    }
 }
