@@ -733,7 +733,7 @@ contract XusdToken is
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy(uint256 value) public onlyPortfolioAgent {
+    function initialize_v2(uint256 value) public reinitializer(2) onlyPortfolioAgent {
         if (value != 0) {
             _rebasingCreditsPerToken = value;
         }

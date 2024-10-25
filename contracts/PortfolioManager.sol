@@ -571,7 +571,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy() public onlyPortfolioAgent {
+    function initialize_v2() public reinitializer(2) onlyPortfolioAgent {
         totalRiskFactor = 7500;
         navSlippageBp = 4;
     }

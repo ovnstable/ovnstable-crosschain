@@ -401,10 +401,10 @@ async function initDeploySet(chainType: ChainType) {
     });
 
     if (chainType == ChainType.SOURCE) {
-        await (exchange as ExchangeMother).connect(dev5Signer).afterRedeploy();
-        await portfolioManager.connect(dev5Signer).afterRedeploy();
-        await xusdToken.connect(dev5Signer).afterRedeploy(0);
-        await wrappedXusdToken.connect(dev5Signer).afterRedeploy(remoteHub.target);
+        await (exchange as ExchangeMother).connect(dev5Signer).initialize_v2();
+        await portfolioManager.connect(dev5Signer).initialize_v2();
+        await xusdToken.connect(dev5Signer).initialize_v2(0);
+        await wrappedXusdToken.connect(dev5Signer).initialize_v2(remoteHub.target);
         await wrappedXusdToken.connect(richSigner).transfer(chain[ChainType.SOURCE].ccipPool, 100000000);
         chain[chainType].liqIndex = (await xusdToken.rebasingCreditsPerTokenHighres()).toString();
     } else {
@@ -412,7 +412,7 @@ async function initDeploySet(chainType: ChainType) {
         const hub = await hre.ethers.getSigner(remoteHub.target as string);
         await xusdToken.connect(hub).mint(wrappedXusdToken.target, "1000000");
         await wrappedXusdToken.connect(dev4Signer).redeem(1000000, dev4Signer.address, dev4Signer.address);
-        await xusdToken.connect(dev5Signer).afterRedeploy(chain[0].liqIndex);
+        await xusdToken.connect(dev5Signer).initialize_v2(chain[0].liqIndex);
     }
 
     for (let i = 0; i < contracts.length; i++) {

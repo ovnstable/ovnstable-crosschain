@@ -7,7 +7,7 @@
         "name": "value",
         "type": "uint256"
       }],
-      "name": "afterRedeploy",
+      "name": "initialize_v2",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
