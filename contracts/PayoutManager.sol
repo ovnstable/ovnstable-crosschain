@@ -49,8 +49,6 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
     event RemoveItem(address token, address pool);
     event PoolOperation(string dexName, string operation, string poolName, address pool, address token, uint256 amount, address to);
     event DisabledUpdated(bool disabled);
-    event RoleManagerUpdated(address roleManager);
-    event PayoutDoneDisabled();
     event RewardWalletUpdated(address rewardWallet);
     event RemoteHubUpdated(address remoteHub);
     error ItemNotFound();
@@ -329,7 +327,7 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
       * Override this method for unique behavior smart-contracts.
       * If standard skim/sync/bribe not allow use.
       */
-    function _custom(NonRebaseInfo memory info, Item memory item) internal virtual {
+    function _custom(NonRebaseInfo memory, Item memory) internal virtual {
         revert CustomNotImplemented();
     }
 

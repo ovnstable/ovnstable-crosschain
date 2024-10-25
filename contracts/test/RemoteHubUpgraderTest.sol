@@ -18,7 +18,7 @@ contract RemoteHubUpgraderTest is
     IRemoteHubUpgrader
 {
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _router, address _remoteHub) CCIPReceiver(_router) {
+    constructor(address _router, address) CCIPReceiver(_router) {
         _disableInitializers();
     }
 

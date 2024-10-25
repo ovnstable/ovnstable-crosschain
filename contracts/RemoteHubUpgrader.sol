@@ -80,8 +80,6 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     // ---  errors
 
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
-    error NothingToWithdraw(); // Used when trying to withdraw Ether but there's nothing to withdraw.
-    error FailedToWithdrawEth(address owner, address target, uint256 value); // Used when the withdrawal of Ether fails.
     error DestinationChainNotAllowlisted(uint64 destinationChainSelector); // Used when the destination chain has not been allowlisted by the contract owner.
     error SourceChainNotAllowlisted(uint64 sourceChainSelector); // Used when the source chain has not been allowlisted by the contract owner.
     error SenderNotAllowlisted(address sender); // Used when the sender has not been allowlisted by the contract owner.
