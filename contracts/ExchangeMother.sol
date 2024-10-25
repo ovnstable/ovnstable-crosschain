@@ -601,7 +601,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy() public onlyPortfolioAgent {
+    function initialize_v2() public reinitializer(2) onlyPortfolioAgent {
         reentrancyGuardStatus = _NOT_ENTERED;
         profitRecipient = 0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46;
         blockGetter = 0xE3c6B98B77BB5aC53242c4B51c566e95703538F7;

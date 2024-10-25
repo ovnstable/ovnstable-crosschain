@@ -3,7 +3,7 @@
   "abi": [
     {
       "inputs": [],
-      "name": "afterRedeploy",
+      "name": "initialize_v2",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

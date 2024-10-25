@@ -39,7 +39,6 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     event Balance();
     event ClaimRewards();
     event TotalRiskFactorUpdated(uint256 value);
-    event Exchanged(uint256 amount, address from, address to);
 
     error InsufficientBalance(uint256 available, uint256 required);
     error StrategyNotFound();
@@ -572,7 +571,7 @@ contract PortfolioManager is IPortfolioManager, Initializable, AccessControlUpgr
     // ---  for deploy
     // delete after deploy
 
-    function afterRedeploy() public onlyPortfolioAgent {
+    function initialize_v2() public reinitializer(2) onlyPortfolioAgent {
         totalRiskFactor = 7500;
         navSlippageBp = 4;
     }

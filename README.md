@@ -13,15 +13,16 @@ EXCHANGER -- Handles all exchange-related operations and transactions within the
 
 
 ## Table of roles:
-                  | source_admin | source_upgrader | destination_admin | destination_upgrader |
-remoteHub         | timelock     | hubUpgrader     | hubUpgrader       | hubUpgrader          |
-remoteHubUpgrader | timelock     | remoteHub       | remoteHub         | remoteHub            |
-exchange          | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
-market            | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
-roleManager       | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
-xusdToken         | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
-wrappedXusdToken  | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
-payoutManager     | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|                  | source_admin | source_upgrader | destination_admin | destination_upgrader |
+| ---------------- | ------------ | --------------- | ----------------- | -------------------- |
+|remoteHub         | timelock     | hubUpgrader     | hubUpgrader       | hubUpgrader          |
+|remoteHubUpgrader | timelock     | remoteHub       | remoteHub         | remoteHub            |
+|exchange          | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|market            | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|roleManager       | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|xusdToken         | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|wrappedXusdToken  | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
+|payoutManager     | remoteHub    | remoteHub       | remoteHub         | remoteHub            |
 
 ## Logic of upgrade:
 

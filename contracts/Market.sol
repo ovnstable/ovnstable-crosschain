@@ -22,7 +22,6 @@ contract Market is IMarket, Initializable, AccessControlUpgradeable, UUPSUpgrade
 
     event RemoteHubUpdated(address remoteHub);
     event MarketUpdatedTokens(address assetToken);
-    event MarketUpdatedParams(address exchange);
     event Wrap(address asset, uint256 amount, address receiver, uint256 wrappedXusdAmount);
     event Unwrap(address asset, uint256 amount, address receiver, uint256 unwrappedXusdAmount);
     error AssetNotFound(address asset);
