@@ -447,7 +447,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      * @param newDelta The new delta value for the payout
      */
     function execMultiPayout(uint256 newDelta) public payable whenNotPaused onlyExchanger {
-        require(sourceChainSelector == chainSelector, "first chainItems element should be motherchain");
+        require(sourceChainSelector == chainSelector, "supported only on motherchain");
         for (uint256 i = 1; i < chainItems.length; ++i) {
             DataCallItem[] memory dataCallItems = new DataCallItem[](1);
             dataCallItems[0] = DataCallItem({
