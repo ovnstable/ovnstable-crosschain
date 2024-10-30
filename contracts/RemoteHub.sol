@@ -482,7 +482,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         IMarket(chainItemById[chainSelector].market).wrap(address(_xusd), _xusd.balanceOf(address(this)), address(this));
 
         if (chainSelector != sourceChainSelector) {
-            // IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
+            IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
         }
 
         DataCallItem[] memory dataCallItems = new DataCallItem[](_destinationChainSelector == sourceChainSelector ? 2 : 3);

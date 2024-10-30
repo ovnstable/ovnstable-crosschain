@@ -90,7 +90,7 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 266295768,
+        BLOCK_NUMBER: 269236761,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: "4949039107694359620",
         ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
@@ -99,7 +99,7 @@ const chain = [
     {
         NAME: "OPTIMISM",
         RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: 126908803,
+        BLOCK_NUMBER: 127347816,
         ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
         chainSelector: "3734403246176062136",
         ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
@@ -108,7 +108,7 @@ const chain = [
     {
         NAME: "ETHEREUM",
         RPC_URL: process.env.ETHEREUM_RPC,
-        BLOCK_NUMBER: 21005884,
+        BLOCK_NUMBER: 21078716,
         ccipRouterAddress: "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
         chainSelector: "5009297550715157269",
         ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c",
@@ -138,7 +138,7 @@ let dev5 = "0x086dFe298907DFf27BD593BD85208D57e0155c94";
 let ganache = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
 let unit = "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199";
 let rewardWallet = "0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46";
-let wxusdRich = "0x045D9DbbC63b637F6717d92Bed155222e3f18651";
+let wxusdRich = "0xf4a0a75851001dFf6f652B3B0523D846cbC4394D";
 
 function fromDir(startPath: string, filter: string): string | undefined {
     if (!fs.existsSync(startPath)) {
@@ -369,6 +369,7 @@ async function initDeploySet(chainType: ChainType) {
     await transferETH(1, dev5Signer.address);
     await transferETH(1, remoteHub.target as string);
     await transferETH(1, timelock);
+    await transferETH(1, richSigner.address);
     await transferETH(1, dev4);
 
     await exchange.connect(signer).grantRole(Roles.UPGRADER_ROLE, signer.address);
