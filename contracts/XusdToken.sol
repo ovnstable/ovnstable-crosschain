@@ -141,11 +141,6 @@ contract XusdToken is
         _;
     }
 
-    // modifier onlyAdmin() {
-    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-    //     _;
-    // }
-
     modifier onlyPortfolioAgent() {
         require(
             roleManager().hasRole(roleManager().PORTFOLIO_AGENT_ROLE(), msg.sender),

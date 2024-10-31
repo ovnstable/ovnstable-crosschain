@@ -77,11 +77,6 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     // ---  modifiers
 
-    // modifier onlyAdmin() {
-    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-    //     _;
-    // }
-
     modifier onlyUpgrader() {
         require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
         _;

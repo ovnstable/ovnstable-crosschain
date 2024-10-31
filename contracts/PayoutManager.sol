@@ -82,11 +82,6 @@ abstract contract PayoutManager is IPayoutManager, Initializable, AccessControlU
 
     // ---  modifiers
 
-    // modifier onlyAdmin() {
-    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-    //     _;
-    // }
-
     modifier onlyExchanger() {
         require(hasRole(roleManager().EXCHANGER(), msg.sender), "Caller doesn't have EXCHANGER role");
         _;

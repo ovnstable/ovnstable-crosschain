@@ -14,8 +14,6 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/
 import {IRemoteHub, IXusdToken, IPayoutManager, IRoleManager, IExchange, IWrappedXusdToken, IMarket, IRemoteHubUpgrader, ChainItem} from "./interfaces/IRemoteHub.sol";
 import {NonRebaseInfo} from "./interfaces/IPayoutManager.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title RemoteHub
  * @notice This contract manages cross-chain communication and token transfers using Chainlink's CCIP
@@ -81,9 +79,6 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         bool success,
         bytes data
     );
-
-    event Paused();
-    event Unpaused();
 
     // ---  errors
 
@@ -229,7 +224,6 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      */
     function pause() public onlyPortfolioAgent {
         _pause();
-        emit Paused();
     }
 
     /**
@@ -237,7 +231,6 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      */
     function unpause() public onlyPortfolioAgent {
         _unpause();
-        emit Unpaused();
     }
 
     /**

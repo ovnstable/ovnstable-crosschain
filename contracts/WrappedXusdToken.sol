@@ -76,11 +76,6 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
         _;
     }
 
-    // modifier onlyAdmin() {
-    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-    //     _;
-    // }
-
     modifier onlyPortfolioAgent() {
         IRoleManager _roleManager = roleManager();
         require(

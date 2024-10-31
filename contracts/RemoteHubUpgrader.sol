@@ -74,8 +74,6 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
     );
 
     event RemoteHubUpdated(address remoteHub);
-    event Paused();
-    event Unpaused();
 
     // ---  errors
 
@@ -184,7 +182,6 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
      */
     function pause() public onlyPortfolioAgent {
         _pause();
-        emit Paused();
     }
 
     /**
@@ -192,7 +189,6 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
      */
     function unpause() public onlyPortfolioAgent {
         _unpause();
-        emit Unpaused();
     }
 
     /**

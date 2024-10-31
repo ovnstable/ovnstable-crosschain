@@ -82,8 +82,6 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event PayoutEvent(uint256 profit, uint256 excessProfit, uint256 insurancePremium, uint256 insuranceLoss);
     event NextPayoutTime(uint256 nextPayoutTime);
     event PayoutSimulationForInsurance(int256 premium);
-    event Paused();
-    event Unpaused();
 
     error OracleLoss();
     error SimilationRevert();
@@ -144,11 +142,6 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     // ---  modifiers
-
-    // modifier onlyAdmin() {
-    //     require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Caller doesn't have DEFAULT_ADMIN_ROLE role");
-    //     _;
-    // }
 
     modifier onlyPortfolioAgent() {
         IRoleManager _roleManager = roleManager();
@@ -276,12 +269,10 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function pause() public onlyPortfolioAgent {
         _pause();
-        emit Paused();
     }
 
     function unpause() public onlyPortfolioAgent {
         _unpause();
-        emit Unpaused();
     }
 
     struct MintParams {
