@@ -11,6 +11,8 @@ import { IRemoteHub, IXusdToken, IRoleManager } from "./interfaces/IRemoteHub.so
 import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
 import { IERC4626 } from "./interfaces/IERC4626.sol";
 
+import "hardhat/console.sol";
+
 // Because of upgradeable contracts, we cannot use PausableUpgradeable (whenNotPaused modifier)
 
 contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
@@ -58,6 +60,8 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyUpgrader {}
+
+    receive() external payable {}
 
     // ---  remoteHub getters
 
@@ -185,7 +189,10 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
      * @param amount The amount of shares to mint
      */
     function mint(address account, uint256 amount) external whenNotPaused onlyCCIP {
-        _mint(account, amount);
+        uint256 shares = amount;
+        uint256 assets = _convertToAssetsUp(shares);
+        xusd().mint(address(this), assets);
+        _mint(account, shares);
     }
 
     /**
@@ -193,7 +200,10 @@ contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeabl
      * @param amount The amount of shares to burn
      */
     function burn(uint256 amount) external whenNotPaused onlyCCIP {
-        _burn(msg.sender, amount);
+        uint256 shares = amount;
+        _burn(msg.sender, shares);
+        uint256 assets = _convertToAssetsDown(shares);
+        xusd().burn(address(this), assets);
     }
 
     /// @inheritdoc IERC4626

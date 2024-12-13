@@ -118,7 +118,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      * @param interfaceId The interface identifier
      * @return bool True if the interface is supported
      */
-    function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
         return (interfaceId == type(IAccessControlUpgradeable).interfaceId) || 
                (interfaceId == type(IERC165Upgradeable).interfaceId) || 
                CCIPReceiver.supportsInterface(interfaceId);
@@ -474,34 +474,16 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         _xusd.approve(address(chainItemById[chainSelector].market), _xusd.balanceOf(address(this)));
         IMarket(chainItemById[chainSelector].market).wrap(address(_xusd), _xusd.balanceOf(address(this)), address(this));
 
-        if (chainSelector != sourceChainSelector) {
-            IXusdToken(chainItemById[chainSelector].xusd).burn(address(_wxusd), _amount);
-        }
-
-        DataCallItem[] memory dataCallItems = new DataCallItem[](_destinationChainSelector == sourceChainSelector ? 2 : 3);
-        if (_destinationChainSelector == sourceChainSelector) {
-            dataCallItems[0] = DataCallItem({
-                executor: chainItemById[_destinationChainSelector].wxusd,
-                data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
-            });
-            dataCallItems[1] = DataCallItem({
-                executor: chainItemById[_destinationChainSelector].market,
-                data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, _wxusd.balanceOf(address(this)), _to)
-            });
-        } else {
-            dataCallItems[0] = DataCallItem({
-                executor: chainItemById[_destinationChainSelector].xusd,
-                data: abi.encodeWithSignature("mint(address,uint256)", chainItemById[_destinationChainSelector].wxusd, _amount)
-            });
-            dataCallItems[1] = DataCallItem({
-                executor: chainItemById[_destinationChainSelector].wxusd,
-                data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
-            });
-            dataCallItems[2] = DataCallItem({
-                executor: chainItemById[_destinationChainSelector].market,
-                data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, _wxusd.balanceOf(address(this)), _to)
-            });
-        }
+        DataCallItem[] memory dataCallItems = new DataCallItem[](2);
+        
+        dataCallItems[0] = DataCallItem({
+            executor: chainItemById[_destinationChainSelector].wxusd,
+            data: abi.encodeWithSignature("approve(address,uint256)", chainItemById[_destinationChainSelector].market, _wxusd.balanceOf(address(this)))
+        });
+        dataCallItems[1] = DataCallItem({
+            executor: chainItemById[_destinationChainSelector].market,
+            data: abi.encodeWithSignature("unwrap(address,uint256,address)", chainItemById[_destinationChainSelector].xusd, _wxusd.balanceOf(address(this)), _to)
+        });
 
         MultichainCallItem memory multichainCallItem = MultichainCallItem({
                 chainSelector: _destinationChainSelector,

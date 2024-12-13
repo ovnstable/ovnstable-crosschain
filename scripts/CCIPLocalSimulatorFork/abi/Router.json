@@ -1,0 +1,27 @@
+[
+  {
+    "inputs": [],
+    "name": "getOffRamps",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "sourceChainSelector",
+            "type": "uint64"
+          },
+          {
+            "internalType": "address",
+            "name": "offRamp",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct Router.OffRamp[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

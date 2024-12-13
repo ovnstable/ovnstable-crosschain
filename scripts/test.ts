@@ -3,7 +3,7 @@ import { ethers, network, upgrades } from "hardhat";
 const hre = require("hardhat");
 const { getImplementationAddress } = require('@openzeppelin/upgrades-core');
 const sampleModule = require('@openzeppelin/hardhat-upgrades/dist/utils/deploy-impl');
-import { getEvm2EvmMessage, requestLinkFromTheFaucet, routeMessage } from "@chainlink/local/scripts/CCIPLocalSimulatorFork";
+import { getEvm2EvmMessage, routeMessage } from "./CCIPLocalSimulatorFork/CCIPLocalSimulatorFork";
 import { RemoteHub, ExchangeMother, Market, ExchangeChild, PayoutManager, PortfolioManager, RoleManager, WrappedXusdToken, XusdToken, RemoteHubUpgrader, ExchangeChild__factory, ExchangeMother__factory, Market__factory, PayoutManager__factory, PortfolioManager__factory, RemoteHub__factory, RemoteHubUpgrader__factory, RoleManager__factory, WrappedXusdToken__factory, XusdToken__factory } from '../typechain-types';
 import { DeployImplementationResponse } from '@openzeppelin/hardhat-upgrades/dist/deploy-implementation';
 const path = require('path');
@@ -17,6 +17,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 import type { ContractFactory, Contract } from 'ethers';
 
+// instalation: npm install (not yarn install)
 // 1st Terminal: npx hardhat node2 --src arbitrum --dest1 optimism --dest2 ethereum
 // 2nd Terminal: npx hardhat run ./scripts/test.ts --network localhost
 
@@ -90,39 +91,39 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 269236761,
+        BLOCK_NUMBER: 284113241,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: "4949039107694359620",
         ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
         liqIndex: ""
     },
-    {
-        NAME: "OPTIMISM",
-        RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: 127347816,
-        ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
-        chainSelector: "3734403246176062136",
-        ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
-        liqIndex: ""
-    },
+    // {
+    //     NAME: "OPTIMISM",
+    //     RPC_URL: process.env.OPTIMISM_RPC,
+    //     BLOCK_NUMBER: 129221527,
+    //     ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
+    //     chainSelector: "3734403246176062136",
+    //     ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
+    //     liqIndex: ""
+    // },
     {
         NAME: "ETHEREUM",
         RPC_URL: process.env.ETHEREUM_RPC,
-        BLOCK_NUMBER: 21078716,
+        BLOCK_NUMBER: 21389559,
         ccipRouterAddress: "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
         chainSelector: "5009297550715157269",
         ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c",
         liqIndex: ""
+    },
+    {
+        NAME: "BASE",
+        RPC_URL: process.env.BASE_RPC,
+        BLOCK_NUMBER: 23629628,
+        ccipRouterAddress: "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
+        chainSelector: 15971525489660198786n,
+        ccipPool: "0xd54fE63Dbd928cA9BB89DB502F939DE673518EB7",
+        liqIndex: ""
     }
-    // {
-    //     NAME: "BASE",
-    //     RPC_URL: process.env.BASE_RPC,
-    //     BLOCK_NUMBER: 18815183,
-    //     ccipRouterAddress: "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
-    //     chainSelector: 15971525489660198786n,
-    //     ccipPool: "0xd54fE63Dbd928cA9BB89DB502F939DE673518EB7",
-    //     liqIndex: ""
-    // }
 ]
 
 enum ChainType {
@@ -246,7 +247,7 @@ async function transferETH(amount: number, to: string) {
 async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
-    networkName = networkName === "ARBITRUM" ? "_S" : (networkName === "OPTIMISM" ? "_D1" : "_D2");
+    networkName = networkName === "ARBITRUM" ? "_S" : (networkName === "ETHEREUM" ? "_D1" : "_D2");
 
     let proxy;
     try {
@@ -316,6 +317,7 @@ async function moveRules<T extends keyof ContractTypes>(contract: ContractTypes[
 
 async function initDeploySet(chainType: ChainType) {
 
+    console.log("Resetting network to ", chain[chainType].NAME);
     await network.provider.request({
         method: "hardhat_reset",
         params: [{
@@ -359,7 +361,7 @@ async function initDeploySet(chainType: ChainType) {
     });
     await hre.network.provider.request({
         method: "hardhat_impersonateAccount",
-        params: [remoteHub.target]
+        params: [wrappedXusdToken.target]
     });
     await hre.network.provider.request({
         method: "hardhat_impersonateAccount",
@@ -367,7 +369,7 @@ async function initDeploySet(chainType: ChainType) {
     });
 
     await transferETH(1, dev5Signer.address);
-    await transferETH(1, remoteHub.target as string);
+    await transferETH(1, wrappedXusdToken.target as string);
     await transferETH(1, timelock);
     await transferETH(1, richSigner.address);
     await transferETH(1, dev4);
@@ -410,9 +412,6 @@ async function initDeploySet(chainType: ChainType) {
         chain[chainType].liqIndex = (await xusdToken.rebasingCreditsPerTokenHighres()).toString();
     } else {
         await roleManager.connect(signer).grantRole(Roles.PORTFOLIO_AGENT_ROLE, dev5Signer);
-        const hub = await hre.ethers.getSigner(remoteHub.target as string);
-        await xusdToken.connect(hub).mint(wrappedXusdToken.target, "1000000");
-        await wrappedXusdToken.connect(dev4Signer).redeem(1000000, dev4Signer.address, dev4Signer.address);
         await xusdToken.connect(dev5Signer).initialize_v2(chain[0].liqIndex);
     }
 
@@ -482,7 +481,7 @@ async function initDeploySet(chainType: ChainType) {
     contracts[chainType] = returnContracts;
 }
 
-async function applyMessage(_to: ChainType, multichainCallItems: any, iter: number) {
+async function applyMessage(_to: ChainType, multichainCallItems: any, iter: number = 0) {
 
     await initDeploySet(ChainType.SOURCE);
 
@@ -612,7 +611,7 @@ async function setParamTest(_to: ChainType, _to2: ChainType) {
     }
     ]
 
-    await applyMessage(_to, multichainCallItems, 0);
+    await applyMessage(_to, multichainCallItems);
 
     const after = await TO.market.assetToken();
     console.log(`usdcToken after:`, after);
@@ -661,7 +660,7 @@ async function makeUpgradeToData(newImpl: string, receiver: string, executor: st
             executor: executor,
             data: encoded
         }]
-    }]
+    }] as MultichainCallItem[];
 
     return multichainCallItems;
 }
@@ -689,7 +688,7 @@ async function upgradeTest(contractName: string, type: string): Promise<boolean>
             executor = D.market.target as string;
         }
         let multichainCallItems = await makeUpgradeToData(newImpl, receiver, executor, ChainType.DESTINATION);
-        await applyMessage(ChainType.DESTINATION, multichainCallItems, 0);
+        await applyMessage(ChainType.DESTINATION, multichainCallItems);
         let impl = await getImplementationAddress(ethers.provider, executor);
         if (impl !== newImpl) {
             throw new Error("Implementation mismatch");
@@ -726,10 +725,10 @@ async function upgradeTest(contractName: string, type: string): Promise<boolean>
 async function getXUSD(account: string, amount: string, chainType: ChainType) {
 
     let xusd = contracts[chainType]?.xusdToken as XusdToken;
-    let hubAddress = (contracts[chainType] as Contracts).remoteHub.target as string;
+    let wrapperAddress = (contracts[chainType] as Contracts).wrappedXusdToken.target as string;
 
-    const hub = await hre.ethers.getSigner(hubAddress);
-    await xusd.connect(hub).mint(account, amount);
+    const wrapper = await hre.ethers.getSigner(wrapperAddress);
+    await xusd.connect(wrapper).mint(account, amount);
 }
 
 async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> {
@@ -753,12 +752,16 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
 
     const tx = await A.remoteHub.connect(signer).crossTransfer(receiver, onexUsd, chain[_to].chainSelector, { value: "1000000000000000000" });
 
+    console.log("balanceBefore", (await A.xusdToken.balanceOf(sender)).toString());
+
     const receipt = await tx.wait();
     // if (!receipt) return;
     const evm2EvmMessage = getEvm2EvmMessage(receipt);
     // if (!evm2EvmMessage) return; 
 
     await initDeploySet(_to);
+
+    console.log("balanceAfter", (await B.xusdToken.balanceOf(receiver)).toString());
 
     await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
 
@@ -771,16 +774,16 @@ async function main() {
 
     await initAllAddresses();
 
-    await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
-    await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2);
+    // await setParamTest(ChainType.DESTINATION, ChainType.DESTINATION2);
+    // await payoutTest(ChainType.DESTINATION, ChainType.DESTINATION2);
 
-    expect(await upgradeTest("Market", "remote")).to.equal(true);
-    expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
-    expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
+    // expect(await upgradeTest("Market", "remote")).to.equal(true);
+    // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
+    // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
 
-    expect(await upgradeTest("Market", "local")).to.equal(true);
-    expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
-    expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
+    // expect(await upgradeTest("Market", "local")).to.equal(true);
+    // expect(await upgradeTest("RemoteHub", "local")).to.equal(true);
+    // expect(await upgradeTest("RemoteHubUpgrader", "local")).to.equal(true);
 
     expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
     expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);

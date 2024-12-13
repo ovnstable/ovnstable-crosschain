@@ -111,7 +111,7 @@ contract RemoteHubUpgrader is CCIPReceiver, Initializable, AccessControlUpgradea
      * @param interfaceId The interface identifier
      * @return bool True if the interface is supported
      */
-    function supportsInterface(bytes4 interfaceId) public pure override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(CCIPReceiver, AccessControlUpgradeable) returns (bool) {
         return (interfaceId == type(IAccessControlUpgradeable).interfaceId) || 
                (interfaceId == type(IERC165Upgradeable).interfaceId) || 
                CCIPReceiver.supportsInterface(interfaceId);

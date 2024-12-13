@@ -6,8 +6,8 @@
     "prettier-plugin-solidity": "^1.4.1"
   },
   "dependencies": {
-    "@chainlink/contracts-ccip": "^1.4.0",
-    "@chainlink/local": "^0.1.0",
+    "@chainlink/contracts-ccip": "^1.5.0",
+    "@chainlink/local": "^0.2.3",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.2.0",
     "@openzeppelin/upgrades-core": "^1.34.1",

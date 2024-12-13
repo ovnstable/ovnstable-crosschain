@@ -15,6 +15,8 @@ import { IRoleManager } from "./interfaces/IRoleManager.sol";
 import { IRemoteHub, IExchange } from "./interfaces/IRemoteHub.sol";
 import { WadRayMath } from "./libraries/WadRayMath.sol";
 
+import "hardhat/console.sol";
+
 // Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
@@ -154,8 +156,8 @@ contract XusdToken is
         _;
     }
 
-    modifier onlyExchangerOrHub() {
-        require(address(exchange()) == msg.sender || address(remoteHub) == msg.sender, "Caller is not the EXCHANGER or HUB");
+    modifier onlyExchangerOrWrapper() {
+        require(address(exchange()) == msg.sender || address(remoteHub.wxusd()) == msg.sender, "Caller is not the EXCHANGER or WRAPPER");
         _;
     }
 
@@ -500,7 +502,7 @@ contract XusdToken is
      * @param _account The address that will receive the minted tokens
      * @param _amount The amount of tokens to mint
      */
-    function mint(address _account, uint256 _amount) external whenNotPaused onlyExchangerOrHub {
+    function mint(address _account, uint256 _amount) external whenNotPaused onlyExchangerOrWrapper {
         _mint(_account, _amount);
     }
 
@@ -517,7 +519,7 @@ contract XusdToken is
     function _mint(address _account, uint256 _amount) internal nonReentrant {
         require(_account != address(0), "Mint to the zero address");
 
-        _beforeTokenTransfer(address(0), _account, _amount);
+        // _beforeTokenTransfer(address(0), _account, _amount);
 
         bool isNonRebasingAccount = _isNonRebasingAccount(_account);
 
@@ -536,7 +538,7 @@ contract XusdToken is
 
         require(_totalSupply <= MAX_SUPPLY, "Max supply");
 
-        _afterTokenTransfer(address(0), _account, _amount);
+        // _afterTokenTransfer(address(0), _account, _amount);
 
         emit Transfer(address(0), _account, _amount);
     }
@@ -546,7 +548,7 @@ contract XusdToken is
      * @param account The address from which to burn tokens
      * @param amount The amount of tokens to burn
      */
-    function burn(address account, uint256 amount) external whenNotPaused onlyExchangerOrHub {
+    function burn(address account, uint256 amount) external whenNotPaused onlyExchangerOrWrapper {
         _burn(account, amount);
     }
 
