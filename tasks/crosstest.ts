@@ -62,3 +62,21 @@ task("node2", 'Starts a JSON-RPC server on top of Hardhat EVM')
 			network: "hardhat",
 		});
     });
+
+task("node3", 'Starts a JSON-RPC server on top of Hardhat EVM')
+	.addParam("src", "The account's address")
+	.addParam("dest", "The account's address")
+    .setAction(async (taskArgs, { ethers }) => {
+		const { run } = require('hardhat');
+
+		await deleteFolderRecursive('./deployments/_S');
+		await deleteFolderRecursive('./deployments/_D');
+
+		await copyFolder('./deployments/' + taskArgs.src, './deployments/_S');
+		await copyFolder('./deployments/' + taskArgs.dest, './deployments/_D');
+
+		await run('node', {
+			...taskArgs,
+			network: "hardhat",
+		});
+    });
