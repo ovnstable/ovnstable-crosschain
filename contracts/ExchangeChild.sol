@@ -44,6 +44,10 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
         return keccak256("UPGRADER_ROLE");
     }
 
+    function PAYOUT_EXECUTOR_ROLE() public pure returns (bytes32) {
+        return keccak256("PAYOUT_EXECUTOR_ROLE");
+    }
+
     /**
      * @notice Initializes the contract
      * @param _remoteHub Address of the RemoteHub contract
@@ -79,6 +83,11 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
 
     modifier onlyUpgrader() {
         require(hasRole(UPGRADER_ROLE(), msg.sender), "Caller doesn't have UPGRADER_ROLE role");
+        _;
+    }
+
+    modifier onlyPayoutExecutor() {
+        require(hasRole(PAYOUT_EXECUTOR_ROLE(), msg.sender), "Caller is not the payout executor");
         _;
     }
 
@@ -127,7 +136,7 @@ contract ExchangeChild is Initializable, AccessControlUpgradeable, UUPSUpgradeab
      * @notice Initiates a payout with a new delta value
      * @param _newDelta New delta value for the payout
      */
-    function payout(uint256 _newDelta) external onlyUpgrader {
+    function payout(uint256 _newDelta) external onlyPayoutExecutor {
         require(_newDelta > LIQ_DELTA_DM, "Negative rebase");
 
         newDelta = _newDelta;

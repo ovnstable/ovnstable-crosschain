@@ -98,12 +98,29 @@ async function main() {
 
 
     //wxusd token optimism
-    contractAddress = "0xb0801b857bFCC893Ec1CCE725917ac9C40ECA717";
+    // contractAddress = "0xb0801b857bFCC893Ec1CCE725917ac9C40ECA717";
+    // await hre.run("verify:verify", {
+    //   address: contractAddress,
+    //   constructorArguments: [],
+    // });
+
+    //remotehub optimism
+    // contractAddress = "0x72cD6A93c6913c99ACcA4bB3122C8ac9C06ab13A";
+
+    // await hre.run("verify:verify", {
+    //     address: contractAddress,
+    //     constructorArguments: [
+    //       "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f"
+    //     ],
+    //   });
+
+
+    //ExchangeChild optimism
+    contractAddress = "0x500b4fed3a3D07A9EC4B97e1D223fE6109fd5D67";
     await hre.run("verify:verify", {
       address: contractAddress,
-      constructorArguments: [],
+      constructorArguments: []
     });
-
 
 
 

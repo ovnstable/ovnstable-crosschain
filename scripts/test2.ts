@@ -27,6 +27,7 @@ class Roles {
     static get DEFAULT_ADMIN_ROLE() { return '0x0000000000000000000000000000000000000000000000000000000000000000'; }
     static get UPGRADER_ROLE() { return '0x189ab7a9244df0848122154315af71fe140f3db0fe014031783b0946b8c9d2e3'; }
     static get EXCHANGER() { return '0x3eb675f159e6ca6cf5de6bfbbc8c4521cfd428f5e9166e51094d5898504caf2d'; }
+    static get PAYOUT_EXECUTOR_ROLE() { return '0xd77df84835b214746cc9546302d3e1df1d6b06740a1f528273c85999497318eb'; }
 }
 
 type Contracts = {
@@ -91,7 +92,7 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 287230226,
+        BLOCK_NUMBER: 288209240,
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: "4949039107694359620",
         ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
@@ -100,7 +101,7 @@ const chain = [
     {
         NAME: "OPTIMISM",
         RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: 129611707,
+        BLOCK_NUMBER: 129734913,
         ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
         chainSelector: "3734403246176062136",
         ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
@@ -336,6 +337,15 @@ async function initDeploySet(chainType: ChainType) {
         xusdToken = (await getContract("XusdToken", networkName)) as XusdToken;
         wrappedXusdToken = (await getContract("WrappedXusdToken", networkName)) as WrappedXusdToken;
         payoutManager = (await getContract("OptimismPayoutManager", networkName)) as PayoutManager;
+
+        const wrapper = await hre.ethers.getSigner(wrappedXusdToken.target);
+        await hre.network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: [wrappedXusdToken.target]
+        });
+        await transferETH(2, wrappedXusdToken.target);
+        await xusdToken.connect(wrapper).mint(dev5, "1000000");
+        
     }
 
     await hre.network.provider.request({
@@ -675,11 +685,10 @@ async function main() {
 
     await initAllAddresses();
 
-    // await setParamTest(ChainType.DESTINATION);
-    // await payoutTest(ChainType.DESTINATION);
+    await payoutTest(ChainType.DESTINATION);
 
-    expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
-    expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
+    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
+    // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
 }
 
 main().catch((error) => {
