@@ -57,9 +57,9 @@ contract XusdToken is
     uint256 private DELETED_1;
     uint256 private DELETED_2;
 
-    EnumerableSet.AddressSet private _owners;
+    EnumerableSet.AddressSet private DELETED_3;
 
-    address private DELETED_3;
+    address private DELETED_4;
 
     uint8 private _decimals;
 
@@ -207,31 +207,8 @@ contract XusdToken is
         return _decimals;
     }
 
-    function ownerLength() external view returns (uint256) {
-        return _owners.length();
-    }
-
     function nonRebaseOwnersLength() external view returns (uint256) {
         return _nonRebaseOwners.length();
-    }
-
-    function ownerAt(uint256 index) external view returns (address) {
-        return _owners.at(index);
-    }
-
-    function ownerBalanceAt(uint256 index) external view returns (uint256) {
-        return balanceOf(_owners.at(index));
-    }
-
-    function totalSupplyOwners() external view returns (uint256) {
-        uint256 owners = this.ownerLength();
-
-        uint256 total = 0;
-        for (uint256 i = 0; i < owners; ++i) {
-            total += this.balanceOf(_owners.at(i));
-        }
-
-        return total;
     }
 
     /**
@@ -519,7 +496,7 @@ contract XusdToken is
     function _mint(address _account, uint256 _amount) internal nonReentrant {
         require(_account != address(0), "Mint to the zero address");
 
-        // _beforeTokenTransfer(address(0), _account, _amount);
+        _beforeTokenTransfer(address(0), _account, _amount);
 
         bool isNonRebasingAccount = _isNonRebasingAccount(_account);
 
@@ -538,7 +515,7 @@ contract XusdToken is
 
         require(_totalSupply <= MAX_SUPPLY, "Max supply");
 
-        // _afterTokenTransfer(address(0), _account, _amount);
+        _afterTokenTransfer(address(0), _account, _amount);
 
         emit Transfer(address(0), _account, _amount);
     }
@@ -703,29 +680,7 @@ contract XusdToken is
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal {}
 
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal {
-        if (from == to) {
-            return;
-        }
-
-        if (from == address(0)) {
-            // mint
-            _owners.add(to);
-        } else if (to == address(0)) {
-            // burn
-            if (balanceOf(from) == 0) {
-                _owners.remove(from);
-            }
-        } else {
-            // transfer
-            if (balanceOf(from) == 0) {
-                _owners.remove(from);
-            }
-            if (amount > 0) {
-                _owners.add(to);
-            }
-        }
-    }
+    function _afterTokenTransfer(address from, address to, uint256 amount) internal {}
 
     // ---  for deploy
     // delete after deploy
