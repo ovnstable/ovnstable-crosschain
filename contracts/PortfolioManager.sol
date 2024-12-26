@@ -6,7 +6,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {OvnMath} from "@overnight-contracts/common/contracts/libraries/OvnMath.sol";
+import {OvnMath} from "./libraries/OvnMath.sol";
 
 import {IPortfolioManager} from "./interfaces/IPortfolioManager.sol";
 import {IStrategy} from "./interfaces/IStrategy.sol";
