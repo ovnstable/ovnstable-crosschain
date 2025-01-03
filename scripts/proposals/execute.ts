@@ -1,47 +1,22 @@
 import { ethers } from "hardhat";
-import * as hre from "hardhat";
-import { getContract,
-    showM2M,
-    execTimelock,
-    initWallet,
-    convertWeights,
-    getPrice,
-    transferETH,
-} from "@overnight-contracts/common/utils/script-utils";
-import { createProposal, testProposal, testUsdPlus, testStrategy } from "@overnight-contracts/common/utils/governance";
-import { BSC } from "@overnight-contracts/common/utils/assets";
-import { Roles } from "@overnight-contracts/common/utils/roles";
-import { fromE6 } from "@overnight-contracts/common/utils/decimals";
-import * as fs from "fs";
-import AGENT_TIMELOCK_ABI from "@overnight-contracts/governance-new/scripts/abi/AGENT_TIMELOCK_ABI.json";
+const fs = require('fs');
+import AGENT_TIMELOCK_ABI from "../helpers/abi/AGENT_TIMELOCK_ABI.json";
+import { getContract, initWallet } from "../helpers/script-utils";
+import { Batch, PREDECESSOR } from "../helpers/governance";
 
-const PREDECESSOR =
-    "0x0000000000000000000000000000000000000000000000000000000000000000";
+const network = "arbitrum";
+const filename = "01_upgrade_to_ccip";
 
-interface Transaction {
-    contractInputsValues: {
-        target: string;
-        value: string;
-        data: string;
-        salt: string;
-    };
-}
-
-interface Batch {
-    transactions: Transaction[];
-}
+let gas = {
+    gasPrice: 200_000_000,
+    gasLimit: 15_000_000
+};
 
 async function main(): Promise<void> {
-    let timelock = await getContract("AgentTimelock");
-
-    let network: string = hre.network.name;
-    if (network === "localhost") {
-        network = process.env.STAND || "";
-    }
-
-    const name = "01_upgrade_to_ccip";
+    let timelock = await getContract("AgentTimelock", "arbitrum");
+    
     const batch: Batch = JSON.parse(
-        await fs.readFileSync(`./batches/${network}/${name}.json`, 'utf8')
+        await fs.readFileSync(`./scripts/proposals/batches/${network}/${filename}.json`, 'utf8')
     );
 
     const addresses: string[] = [];
@@ -54,23 +29,14 @@ async function main(): Promise<void> {
         values.push(Number.parseInt(transaction.contractInputsValues.value));
         datas.push(transaction.contractInputsValues.data);
         salt.push(transaction.contractInputsValues.salt);
-        console.log(transaction);
     }
 
-    timelock = await ethers.getContractAt(
-        AGENT_TIMELOCK_ABI,
-        timelock.address,
-        await initWallet()
-    );
+    console.log("timelock.address", timelock.target);
+    timelock = await ethers.getContractAt(AGENT_TIMELOCK_ABI, timelock.target, await initWallet());
 
     for (let i = 0; i < addresses.length; i++) {
-        const hash = await timelock.hashOperation(
-            addresses[i],
-            values[i],
-            datas[i],
-            PREDECESSOR,
-            salt[i]
-        );
+        
+        const hash = await timelock.hashOperation(addresses[i], values[i], datas[i], PREDECESSOR, salt[i]);
         console.log("HashOperation: " + hash);
 
         const timestamp = await timelock.getTimestamp(hash);
@@ -83,19 +49,7 @@ async function main(): Promise<void> {
         }
 
         if (timestamp > 1) {
-            await (
-                await timelock.execute(
-                    addresses[i],
-                    values[i],
-                    datas[i],
-                    PREDECESSOR,
-                    salt[i],
-                    {
-                        gasPrice: 200_000_000,
-                        gasLimit: 15_000_000
-                    }
-                )
-            ).wait();
+            await timelock.execute(addresses[i], values[i], datas[i], PREDECESSOR, salt[i], gas);
         }
     }
 }

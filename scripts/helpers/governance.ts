@@ -3,12 +3,30 @@ const hre = require('hardhat');
 const fs = require("fs");
 import { ethers } from 'hardhat';
 import appRoot from 'app-root-path';
+import { getContract } from './script-utils';
 const path = require('path');
 const proposalStates = ['Pending', 'Active', 'Canceled', 'Defeated', 'Succeeded', 'Queued', 'Expired', 'Executed'];
 const { platform } = process;
+const dotenv = require('dotenv');
+dotenv.config({ path: __dirname + '/../.env' });
 
 let chainId = 42161;
 let stand = "arbitrum";
+
+const PREDECESSOR = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+interface Transaction {
+    contractInputsValues: {
+        target: string;
+        value: string;
+        data: string;
+        salt: string;
+    };
+}
+
+interface Batch {
+    transactions: Transaction[];
+}
 
 interface BatchTransaction {
     to: string;
@@ -55,9 +73,7 @@ interface TestResult {
 
 async function createProposal(
     name: string, 
-    addresses: string[], 
-    values: number[], 
-    abis: string[]
+    proposalItems: ProposalItems
 ): Promise<void> {
 
     let timelock: Contract = await getContract('AgentTimelock', stand);
@@ -83,8 +99,8 @@ async function createProposal(
         ]
     }
 
-    for (let i = 0; i < addresses.length; i++) {
-        batch.transactions.push(createTransaction(timelock, minDelay, addresses[i], values[i], abis[i]))
+    for (let i = 0; i < proposalItems.address.length; i++) {
+        batch.transactions.push(createTransaction(timelock, minDelay, proposalItems.address[i], proposalItems.value[i], proposalItems.abi[i]))
     }
 
     let batchName;
@@ -163,19 +179,17 @@ function createTransaction(
 }
 
 async function testProposal(
-    addresses: string[], 
-    values: number[], 
-    abis: string[]
+    proposalItems: ProposalItems
 ): Promise<void> {
 
     // console.log('Count transactions: ' + addresses.length);
 
     await execTimelock(async (timelock: Contract)=>{
 
-        for (let i = 0; i < addresses.length; i++) {
+        for (let i = 0; i < proposalItems.address.length; i++) {
 
-            let address = addresses[i];
-            let abi = abis[i];
+            let address = proposalItems.address[i];
+            let abi = proposalItems.abi[i];
 
             let tx = {
                 from: timelock.target,
@@ -236,44 +250,45 @@ async function transferETH(amount: number, to: string) {
     });
 }
 
-async function getContract(name: string, networkName: string): Promise<any> {
-    const searchPath = fromDir(appRoot.path, path.join(networkName, `${name}.json`));
-    if (searchPath === undefined) {
-        throw new Error(`Contract file not found for ${name} on ${networkName}`);
-    }
-    const contractJson = JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
-    return await ethers.getContractAt(contractJson.abi, contractJson.address);
+type ProposalItem = {
+    contract: Contract,
+    methodName: string,
+    params: any[]
 }
 
-function fromDir(startPath: string, filter: string): string | undefined {
-    if (!fs.existsSync(startPath)) {
-        console.error(`Directory does not exist: ${startPath}`);
-        return undefined;
+type ProposalItems = {
+    address: string[],
+    value: number[],
+    abi: string[]
+}
+
+async function addProposalItems(items: ProposalItem[]) : Promise<ProposalItems> {
+    let address: string[] = [];
+    let value: number[] = [];
+    let abi: string[] = [];
+
+    for (const item of items) {
+        address.push(item.contract.target as string);
+        value.push(0);
+        abi.push(item.contract.interface.encodeFunctionData(item.methodName, item.params));
     }
 
-    try {
-        const files = fs.readdirSync(startPath);
-
-        for (const file of files) {
-            const filename = path.join(startPath, file);
-            const stat = fs.lstatSync(filename);
-
-            if (stat.isDirectory()) {
-                const result = fromDir(filename, filter);
-                if (result) return result;
-            } else if (filename.endsWith(filter)) {
-                return filename;
-            }
-        }
-    } catch (error) {
-        console.error(`Error reading directory ${startPath}:`, error);
-    }
-
-    return undefined;
+    return {
+        address,
+        value,
+        abi
+    } as unknown as ProposalItems;
 }
 
 export {
     createProposal,
     testProposal,
     getProposalState,
+    addProposalItems,
+    ProposalItem,
+    ProposalItems,
+    Batch,
+    Transaction,
+    BatchTransaction,
+    PREDECESSOR
 };

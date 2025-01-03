@@ -1,11 +1,11 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { ethers, network, upgrades } from "hardhat";
-import { testProposal } from "./governance/governance";
+import { network } from "hardhat";
 const hre = require("hardhat");
+import { testProposal } from "../scripts/helpers/governance";
+const { ethers, upgrades } = hre;
 const { getImplementationAddress } = require('@openzeppelin/upgrades-core');
 const sampleModule = require('@openzeppelin/hardhat-upgrades/dist/utils/deploy-impl');
-import { getEvm2EvmMessage, routeMessage } from "./CCIPLocalSimulatorFork/CCIPLocalSimulatorFork";
-import { RemoteHub, ExchangeMother, Market, ExchangeChild, PayoutManager, PortfolioManager, RoleManager, WrappedXusdToken, XusdToken, RemoteHubUpgrader, ExchangeChild__factory, ExchangeMother__factory, Market__factory, PayoutManager__factory, PortfolioManager__factory, RemoteHub__factory, RemoteHubUpgrader__factory, RoleManager__factory, WrappedXusdToken__factory, XusdToken__factory } from '../typechain-types';
+import { getEvm2EvmMessage, routeMessage } from "../scripts/helpers/CCIPLocalSimulatorFork";
 import { DeployImplementationResponse } from '@openzeppelin/hardhat-upgrades/dist/deploy-implementation';
 const path = require('path');
 const fs = require('fs');
@@ -17,75 +17,12 @@ const { expect } = require("chai");
 const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 import type { ContractFactory, Contract } from 'ethers';
+import { fromDir, Roles, ThreeContracts, Contracts, ContractTypes, ContractFactoryTypes, MultichainCallItem, RemoteHub, RemoteHubUpgrader, ExchangeChild, ExchangeMother, Market, PortfolioManager, RoleManager, WrappedXusdToken, XusdToken, PayoutManager } from '../scripts/helpers/script-utils';
+import { getProposalItems } from '../scripts/proposals/scripts/arbitrum/01_upgrade_to_ccip';
 
 // instalation: npm install (not yarn install)
-// 1st Terminal: npx hardhat node3 --src arbitrum --dest optimism
-// 2nd Terminal: npx hardhat run ./scripts/test3.ts --network localhost
-
-class Roles {
-    static get PORTFOLIO_AGENT_ROLE() { return '0xd67ad422505496469a1adf6cdf9e5ee92ac5d33992843c9ecc4b2f6d6cde9137'; }
-    static get UNIT_ROLE() { return '0xede8101501d89b9894e78e4f219420b6ddb840e8e75dde35741a0745408476d7'; }
-    static get DEFAULT_ADMIN_ROLE() { return '0x0000000000000000000000000000000000000000000000000000000000000000'; }
-    static get UPGRADER_ROLE() { return '0x189ab7a9244df0848122154315af71fe140f3db0fe014031783b0946b8c9d2e3'; }
-    static get EXCHANGER() { return '0x3eb675f159e6ca6cf5de6bfbbc8c4521cfd428f5e9166e51094d5898504caf2d'; }
-    static get PAYOUT_EXECUTOR_ROLE() { return '0xd77df84835b214746cc9546302d3e1df1d6b06740a1f528273c85999497318eb'; }
-}
-
-type Contracts = {
-    remoteHub: RemoteHub;
-    remoteHubUpgrader: RemoteHubUpgrader;
-    exchange: ExchangeMother | ExchangeChild;
-    market: Market;
-    roleManager: RoleManager;
-    portfolioManager: PortfolioManager;
-    xusdToken: XusdToken;
-    wrappedXusdToken: WrappedXusdToken;
-    payoutManager: PayoutManager;
-    test: {
-        marketTestImpl: string;
-        remoteHubTestImpl: string;
-        remoteHubUpgraderTestImpl: string;
-    }
-}
-
-type ContractTypes = {
-    RemoteHub: RemoteHub;
-    ExchangeMother: ExchangeMother;
-    Market: Market;
-    ExchangeChild: ExchangeChild;
-    PayoutManager: PayoutManager;
-    RoleManager: RoleManager;
-    PortfolioManager: PortfolioManager;
-    WrappedXusdToken: WrappedXusdToken;
-    XusdToken: XusdToken;
-    RemoteHubUpgrader: RemoteHubUpgrader;
-}
-
-type ContractFactoryTypes = {
-    RemoteHub: RemoteHub__factory;
-    ExchangeMother: ExchangeMother__factory;
-    Market: Market__factory;
-    ExchangeChild: ExchangeChild__factory;
-    PayoutManager: PayoutManager__factory;
-    RoleManager: RoleManager__factory;
-    PortfolioManager: PortfolioManager__factory;
-    WrappedXusdToken: WrappedXusdToken__factory;
-    XusdToken: XusdToken__factory;
-    RemoteHubUpgrader: RemoteHubUpgrader__factory;
-}
-
-type MultichainCallItem = {
-    chainSelector: string;
-    receiver: string;
-    token: string;
-    amount: number;
-    batchData: {
-        executor: string;
-        data: string;
-    }[];
-}
-
-type ThreeContracts = [Contracts | undefined, Contracts | undefined, Contracts | undefined];
+// 1st Terminal: npx hardhat node3
+// 2nd Terminal: npx hardhat run ./test/test3.ts --network localhost --net arbitrum
 
 let contracts: ThreeContracts = [undefined, undefined, undefined];
 
@@ -93,20 +30,18 @@ const chain = [
     {
         NAME: "ARBITRUM",
         RPC_URL: process.env.ARBITRUM_RPC,
-        BLOCK_NUMBER: 288760270,
+        BLOCK_NUMBER: Number(process.env.ARBITRUM_BLOCK_NUMBER),
         ccipRouterAddress: "0x141fa059441E0ca23ce184B6A78bafD2A517DdE8",
         chainSelector: "4949039107694359620",
-        ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6",
-        liqIndex: ""
+        ccipPool: "0x86d99f9b22052645eA076cd16da091b9E87fB6d6"
     },
     {
         NAME: "OPTIMISM",
         RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: 129803609,
+        BLOCK_NUMBER: Number(process.env.OPTIMISM_BLOCK_NUMBER),
         ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
         chainSelector: "3734403246176062136",
-        ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
-        liqIndex: ""
+        ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3"
     }
 ]
 
@@ -115,57 +50,12 @@ enum ChainType {
     DESTINATION = 1
 }
 
-let addresses: string[] = [];
-let values: number[] = [];
-let abis: string[] = [];
-
 let timelock = "0xa44dF8A8581C2cb536234E6640112fFf932ED2c4";
 let dev1 = "0x66B439c0a695cc3Ed3d9f50aA4E6D2D917659FfD";
 let dev4 = "0xcd8562CD85fD93C7e2E80B4Cf69097E5562a76f9";
 let dev5 = "0x086dFe298907DFf27BD593BD85208D57e0155c94";
 let rewardWallet = "0x9030D5C596d636eEFC8f0ad7b2788AE7E9ef3D46";
 let wxusdRich = "0xf4a0a75851001dFf6f652B3B0523D846cbC4394D";
-
-let exchangeImpl = "0x436cF8bE54d1a062cB513cD13Fc69D8DFafF54f2";
-let marketImpl = "0x460ad2b4e7329923458DaC0aACA6a71C49C848a1";
-let roleManagerImpl = "0x208F11B866A13804f605F0C50Dd6386Af00c6f3b";
-let portfolioManagerImpl = "0x0B82b3D5eAa6cCAF521f8fB00bE5F572a75d5e3c";
-let xusdTokenImpl = "0x53c905E4fbE64bd03c15CD16b330D2Cc20EcA4E5";
-let wrappedXusdTokenImpl = "0x9D0Fbc852dEcCb7dcdd6CB224Fa7561EfDa74411";
-let payoutManagerImpl = "0x9D43BABA222261e5cD9966F1A9E9cc709c491240";
-
-function addProposalItem(contract: any, methodName: string, params: any[]): void {
-    addresses.push(contract.target as string);
-    values.push(0);
-    abis.push(contract.interface.encodeFunctionData(methodName, params));
-}
-
-function fromDir(startPath: string, filter: string): string | undefined {
-    if (!fs.existsSync(startPath)) {
-        console.error(`Directory does not exist: ${startPath}`);
-        return undefined;
-    }
-
-    try {
-        const files = fs.readdirSync(startPath);
-
-        for (const file of files) {
-            const filename = path.join(startPath, file);
-            const stat = fs.lstatSync(filename);
-
-            if (stat.isDirectory()) {
-                const result = fromDir(filename, filter);
-                if (result) return result;
-            } else if (filename.endsWith(filter)) {
-                return filename;
-            }
-        }
-    } catch (error) {
-        console.error(`Error reading directory ${startPath}:`, error);
-    }
-
-    return undefined;
-}
 
 async function getContract<T extends keyof ContractTypes>(name: string, networkName: string): Promise<ContractTypes[T]> {
     try {
@@ -247,7 +137,7 @@ async function transferETH(amount: number, to: string) {
 async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
-    networkName = networkName === "ARBITRUM" ? "_S" : "_D";
+    networkName = networkName === "ARBITRUM" ? "_arbitrum" : "_optimism";
 
     let proxy;
     try {
@@ -317,10 +207,6 @@ async function moveRules<T extends keyof ContractTypes>(contract: ContractTypes[
 
 async function initDeploySet(chainType: ChainType) {
 
-    addresses = [];
-    values = [];
-    abis = [];
-
     console.log("Resetting network to ", chain[chainType].NAME);
     await network.provider.request({
         method: "hardhat_reset",
@@ -338,7 +224,7 @@ async function initDeploySet(chainType: ChainType) {
     let dev5Signer = await ethers.getSigner(dev5);
     let richSigner = await ethers.getSigner(wxusdRich);
 
-    let networkName = chainType == ChainType.SOURCE ? "_S" : "_D";
+    let networkName = chainType == ChainType.SOURCE ? "_arbitrum" : "_optimism";
 
     let remoteHub = (await getContract("RemoteHub", networkName)) as RemoteHub;
     let remoteHubUpgrader = (await getContract("RemoteHubUpgrader", networkName)) as RemoteHubUpgrader;
@@ -348,39 +234,11 @@ async function initDeploySet(chainType: ChainType) {
     let portfolioManager = (await getContract("PortfolioManager", networkName)) as PortfolioManager;
     let xusdToken = (await getContract("XusdToken", networkName)) as XusdToken;
     let wrappedXusdToken = (await getContract("WrappedXusdToken", networkName)) as WrappedXusdToken;
-    let payoutManager = (await getContract(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : "OptimismPayoutManager", networkName)) as PayoutManager;
+    let payoutManager = (await getContract(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : "OptimismPayoutManager", networkName)) as PayoutManager;    
 
     if (chainType == ChainType.SOURCE) {
-        addProposalItem(exchange, 'upgradeTo', [exchangeImpl]);
-        addProposalItem(market, 'upgradeTo', [marketImpl]);
-        addProposalItem(roleManager, 'upgradeTo', [roleManagerImpl]);
-        addProposalItem(portfolioManager, 'upgradeTo', [portfolioManagerImpl]);
-        addProposalItem(xusdToken, 'upgradeTo', [xusdTokenImpl]);
-        addProposalItem(wrappedXusdToken, 'upgradeTo', [wrappedXusdTokenImpl]);
-
-        addProposalItem(exchange, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(market, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(roleManager, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(portfolioManager, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(xusdToken, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(wrappedXusdToken, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-
-        addProposalItem(exchange, 'setRemoteHub', [remoteHub.target]);
-        addProposalItem(market, 'setRemoteHub', [remoteHub.target]);
-        addProposalItem(portfolioManager, 'setRemoteHub', [remoteHub.target]);
-        addProposalItem(xusdToken, 'setRemoteHub', [remoteHub.target]);
-        addProposalItem(wrappedXusdToken, 'setRemoteHub', [remoteHub.target]);
-
-        addProposalItem(exchange, 'initialize_v2', []);
-        addProposalItem(portfolioManager, 'initialize_v2', []);
-        addProposalItem(xusdToken, 'initialize_v2', [0]);
-        addProposalItem(wrappedXusdToken, 'initialize_v2', [remoteHub.target]);
-
-        addProposalItem(payoutManager, 'upgradeTo', [payoutManagerImpl]);
-        addProposalItem(payoutManager, 'grantRole', [Roles.UPGRADER_ROLE, timelock]);
-        addProposalItem(payoutManager, 'setRemoteHub', [remoteHub.target]);
-        
-        await testProposal(addresses, values, abis);
+        let proposalItems = await getProposalItems();
+        await testProposal(proposalItems);
     } else {
         const wrapper = await hre.ethers.getSigner(wrappedXusdToken.target);
         await hre.network.provider.request({
@@ -421,7 +279,7 @@ async function initDeploySet(chainType: ChainType) {
     if (chainType == ChainType.SOURCE) {
         await wrappedXusdToken.connect(richSigner).transfer(chain[ChainType.SOURCE].ccipPool, 100000000);
     } else {
-        await xusdToken.connect(dev5Signer).changeTotalSupply("843376254870476897886799241");
+        await xusdToken.connect(dev5Signer).changeTotalSupply("841199807039117855832110550");
     }
 
     let marketTestImpl = await deployImplementation(await getContractFactory("MarketTest", []), [], []);
@@ -714,10 +572,10 @@ async function main() {
 
     await initAllAddresses();
 
-    await payoutTest(ChainType.DESTINATION);
+    // await payoutTest(ChainType.DESTINATION);
 
-    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
-    // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
+    expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
+    expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
 }
 
 main().catch((error) => {

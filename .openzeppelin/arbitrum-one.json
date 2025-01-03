@@ -1054,7 +1054,11 @@
           }
         },
         "namespaces": {}
-      }
+      },
+      "allAddresses": [
+        "0x460ad2b4e7329923458DaC0aACA6a71C49C848a1",
+        "0x19f19d7a3aE8c52f67040f8B9dE8193B1F95C1fA"
+      ]
     },
     "38cc0c63a4d61c1bb35b1591cd65b340a1603cc7c2e8aa553c56a6fc9629f0d6": {
       "address": "0x208F11B866A13804f605F0C50Dd6386Af00c6f3b",

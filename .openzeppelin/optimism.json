@@ -923,7 +923,11 @@
           }
         },
         "namespaces": {}
-      }
+      },
+      "allAddresses": [
+        "0x8f2626E1200d9F3Df7Cb04F7BDff77315DD2aa27",
+        "0x336523Ca318Ea0d631F72cF4875e6796BB2e617e"
+      ]
     },
     "38cc0c63a4d61c1bb35b1591cd65b340a1603cc7c2e8aa553c56a6fc9629f0d6": {
       "address": "0xe194FEE77630D6B1485A369cc3656Ae13de9751a",
