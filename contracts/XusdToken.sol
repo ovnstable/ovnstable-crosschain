@@ -15,8 +15,6 @@ import { IRoleManager } from "./interfaces/IRoleManager.sol";
 import { IRemoteHub, IExchange } from "./interfaces/IRemoteHub.sol";
 import { WadRayMath } from "./libraries/WadRayMath.sol";
 
-import "hardhat/console.sol";
-
 // Because of upgradeable cannot use ReentrancyGuard (nonReentrant modifier)
 // Because of upgradeable cannot use PausableUpgradeable (whenNotPaused modifier)
 
@@ -691,5 +689,11 @@ contract XusdToken is
         }
         _name = "xUSD";
         _symbol = "xUSD";
+    }
+
+    function changeTotalSupply(uint256 value) public onlyPortfolioAgent {
+        if (value != 0) {
+            _rebasingCreditsPerToken = value;
+        }
     }
 }

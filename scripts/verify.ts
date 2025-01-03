@@ -98,14 +98,80 @@ async function main() {
 
 
     //wxusd token optimism
-    contractAddress = "0xb0801b857bFCC893Ec1CCE725917ac9C40ECA717";
-    await hre.run("verify:verify", {
-      address: contractAddress,
-      constructorArguments: [],
-    });
+    // contractAddress = "0xb0801b857bFCC893Ec1CCE725917ac9C40ECA717";
+    // await hre.run("verify:verify", {
+    //   address: contractAddress,
+    //   constructorArguments: [],
+    // });
+
+    //remotehub optimism
+    // contractAddress = "0x72cD6A93c6913c99ACcA4bB3122C8ac9C06ab13A";
+
+    // await hre.run("verify:verify", {
+    //     address: contractAddress,
+    //     constructorArguments: [
+    //       "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f"
+    //     ],
+    //   });
 
 
+    //ExchangeChild optimism
+    // contractAddress = "0x500b4fed3a3D07A9EC4B97e1D223fE6109fd5D67";
+    // await hre.run("verify:verify", {
+    //   address: contractAddress,
+    //   constructorArguments: []
+    // });
 
+    //xusd token optimism
+    // contractAddress = "0x4d584650c4B1Ca5fCcE5184E02a717B5B94e9656";
+    // await hre.run("verify:verify", {
+    //   address: contractAddress,
+    //   constructorArguments: []
+    // });
+
+    // let exchangeImpl = "0x436cF8bE54d1a062cB513cD13Fc69D8DFafF54f2";
+    // let marketImpl = "0x460ad2b4e7329923458DaC0aACA6a71C49C848a1";
+    // let roleManagerImpl = "0x208F11B866A13804f605F0C50Dd6386Af00c6f3b";
+    // let portfolioManagerImpl = "0x0B82b3D5eAa6cCAF521f8fB00bE5F572a75d5e3c";
+    // let xusdTokenImpl = "0x53c905E4fbE64bd03c15CD16b330D2Cc20EcA4E5";
+    // let wrappedXusdTokenImpl = "0x9D0Fbc852dEcCb7dcdd6CB224Fa7561EfDa74411";
+    // let payoutManagerImpl = "0x9D43BABA222261e5cD9966F1A9E9cc709c491240";
+
+    // await hre.run("verify:verify", {
+    //   address: exchangeImpl,
+    //   constructorArguments: []
+    // });
+
+    // await hre.run("verify:verify", {
+    //   address: marketImpl,
+    //   constructorArguments: []
+    // });
+
+    // await hre.run("verify:verify", {
+    //   address: roleManagerImpl,
+    //   constructorArguments: []
+    // });
+
+    // await hre.run("verify:verify", {
+    //   address: portfolioManagerImpl,
+    //   constructorArguments: []
+    // });
+
+    // await hre.run("verify:verify", {
+    //   address: xusdTokenImpl,
+    //   constructorArguments: []
+    // }); 
+
+    // await hre.run("verify:verify", {
+    //   address: wrappedXusdTokenImpl,
+    //   constructorArguments: []
+    // });
+
+    // await hre.run("verify:verify", {
+    //   address: payoutManagerImpl,
+    //   constructorArguments: [],
+    //   contract: "contracts/payoutManagers/ArbitrumPayoutManager.sol:ArbitrumPayoutManager"
+    // });
 
 }
 

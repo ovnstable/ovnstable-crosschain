@@ -21,6 +21,29 @@ const config: HardhatUserConfig = {
     }
   },
   networks: {
+    hardhat: {
+      forking: {
+        url: process.env.ARBITRUM_RPC,
+        blockNumber: Number(process.env.ARBITRUM_BLOCK_NUMBER),
+        accounts: [process.env.PRIVATE_KEY]
+      }
+    },
+    // _arbitrum: {
+    //   url: process.env.ARBITRUM_RPC,
+    //   forking: {
+    //     url: process.env.ARBITRUM_RPC,
+    //     blockNumber: 291400100,
+    //     accounts: [process.env.PRIVATE_KEY]
+    //   }
+    // },
+    // _optimism: {
+    //   url: process.env.OPTIMISM_RPC,
+    //   forking: {
+    //     url: process.env.OPTIMISM_RPC,
+    //     blockNumber: 130135264,
+    //     accounts: [process.env.PRIVATE_KEY]
+    //   }
+    // },
     arbitrum: {
       url: process.env.ARBITRUM_RPC,
       accounts: [process.env.PRIVATE_KEY]

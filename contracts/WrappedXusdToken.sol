@@ -11,8 +11,6 @@ import { IRemoteHub, IXusdToken, IRoleManager } from "./interfaces/IRemoteHub.so
 import { NonRebaseInfo } from "./interfaces/IPayoutManager.sol";
 import { IERC4626 } from "./interfaces/IERC4626.sol";
 
-import "hardhat/console.sol";
-
 // Because of upgradeable contracts, we cannot use PausableUpgradeable (whenNotPaused modifier)
 
 contract WrappedXusdToken is IERC4626, ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {

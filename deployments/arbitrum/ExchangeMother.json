@@ -3,6 +3,19 @@
   "abi": [
     {
       "inputs": [],
+      "name": "remoteHub",
+      "outputs": [
+        {
+          "internalType": "contract IRemoteHub",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "initialize_v2",
       "outputs": [],
       "stateMutability": "nonpayable",

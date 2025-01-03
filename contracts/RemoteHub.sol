@@ -174,6 +174,13 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
         _;
     }
 
+    // need to be deleted after testing
+    modifier onlyAllowlistedForCrossTransfer() {
+        //dev wallet
+        require(msg.sender == 0x086dFe298907DFf27BD593BD85208D57e0155c94, "Not allowlisted for cross transfer");
+        _;
+    }
+
     /// @dev Modifier that checks if the chain with the given sourceChainSelector is allowlisted and if the sender is allowlisted.
     /// @param _sourceChainSelector The selector of the destination chain.
     /// @param _sender The address of the sender.
@@ -466,7 +473,8 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
      */
     function crossTransfer(address _to, uint256 _amount, uint64 _destinationChainSelector) 
     onlyAllowlistedDestinationChain(_destinationChainSelector)
-    whenNotPaused 
+    whenNotPaused
+    onlyAllowlistedForCrossTransfer
     payable public {
         IXusdToken _xusd = xusd();
         IWrappedXusdToken _wxusd = wxusd();
