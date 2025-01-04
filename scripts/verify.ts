@@ -173,6 +173,13 @@ async function main() {
     //   contract: "contracts/payoutManagers/ArbitrumPayoutManager.sol:ArbitrumPayoutManager"
     // });
 
+    // wxusd token optimism
+    // contractAddress = "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7";
+    // await hre.run("verify:verify", {
+    //   address: contractAddress,
+    //   constructorArguments: [],
+    // });
+
 }
 
 

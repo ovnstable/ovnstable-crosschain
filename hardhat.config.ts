@@ -51,10 +51,24 @@ const config: HardhatUserConfig = {
     optimism: {
       url: process.env.OPTIMISM_RPC,
       accounts: [process.env.PRIVATE_KEY]
+    },
+    sonic: {
+      url: process.env.SONIC_RPC,
+      accounts: [process.env.PRIVATE_KEY]
     }
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY
+    apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: "sonic",
+        chainId: 146,
+        urls: {
+          apiURL: "https://api.sonicscan.org/api",
+          browserURL: "https://sonicscan.org"
+        }
+      },
+    ]
   },
 };
 

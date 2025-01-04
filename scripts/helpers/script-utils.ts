@@ -85,11 +85,13 @@ async function deployImpl(contractName: string, initParams: any) {
 enum Chains {
     Arbitrum = "arbitrum",
     Optimism = "optimism",
+    Sonic = "sonic",
 }
 
 const chainByChainId = {
     [42161]: Chains.Arbitrum,
     [10]: Chains.Optimism,
+    [146]: Chains.Sonic,
 };
 
 const chain = {
@@ -100,6 +102,10 @@ const chain = {
     [Chains.Optimism]: {
         RPC_URL: process.env.OPTIMISM_RPC,
         BLOCK_NUMBER: Number(process.env.OPTIMISM_BLOCK_NUMBER),
+    },
+    [Chains.Sonic]: {
+        RPC_URL: process.env.SONIC_RPC,
+        BLOCK_NUMBER: Number(process.env.SONIC_BLOCK_NUMBER),
     }
 };
 
