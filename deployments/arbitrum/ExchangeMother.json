@@ -885,11 +885,6 @@
               "internalType": "uint256",
               "name": "amount",
               "type": "uint256"
-            },
-            {
-              "internalType": "string",
-              "name": "referral",
-              "type": "string"
             }
           ],
           "internalType": "struct Exchange.MintParams",

@@ -55,6 +55,10 @@ const config: HardhatUserConfig = {
     sonic: {
       url: process.env.SONIC_RPC,
       accounts: [process.env.PRIVATE_KEY]
+    },
+    bsc: {
+      url: process.env.BSC_RPC,
+      accounts: [process.env.PRIVATE_KEY]
     }
   },
   etherscan: {
@@ -68,6 +72,14 @@ const config: HardhatUserConfig = {
           browserURL: "https://sonicscan.org"
         }
       },
+      {
+        network: "bsc",
+        chainId: 56,
+        urls: {
+          apiURL: "https://api.bscscan.com/api",
+          browserURL: "https://bscscan.com"
+        }
+      }
     ]
   },
 };

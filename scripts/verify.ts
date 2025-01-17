@@ -179,6 +179,51 @@ async function main() {
     //   address: contractAddress,
     //   constructorArguments: [],
     // });
+    
+
+    let bscImpls = {
+      remoteHub: "0xaD4939705B9d1207415A4B2E7818714455fD9137",
+      remoteHubUpgrader: "0x09d39311b962aA803D32BD79DAA3Fe3ae9E5E579",
+      exchange: "0x60c8A332Fd6d67F80cC4906f31ce9c5043fab992",
+      market: "0xd9239aB483CdcE215dB4F4c344Ce6ea27E2EF9Cd",
+      roleManager: "0xe7Fe20C74E209C51671e7c54509846EF96eBA939",
+      portfolioManager: "0x65B6747470441c28D91B77dDFef6d4969805089b",
+      xusdToken: "0xB04ae3248216cE8A5B52620820f7eDe27281AE10",
+      payoutManager: "0xA9c6b33CDD4D5EA1929826A846a1c04Fb3a5732e",
+      wrappedXusdToken: "0xD63a1F77f159ED0D3Ac83dA100FdE4AdC14210Bf",
+    }
+
+    for (const [key, value] of Object.entries(bscImpls)) {
+      
+      let name = "";
+      if (key === "payoutManager") {
+          name = "contracts/payoutManagers/BscPayoutManager.sol:BscPayoutManager";
+      }
+
+      let constructorArguments = [];
+
+      if (key === "remoteHub") {
+        constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE"];
+      } else if (key === "remoteHubUpgrader") {
+        constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE", "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68"];
+      }
+
+
+      if (name === "") {
+        await hre.run("verify:verify", {
+            address: value,
+            constructorArguments: constructorArguments
+        });
+      } else {
+        await hre.run("verify:verify", {
+          address: value,
+          constructorArguments: constructorArguments,
+          contract: name
+        });
+      }
+
+      console.log("Verified ", key, " ", value);
+    }
 
 }
 
