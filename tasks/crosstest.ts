@@ -73,9 +73,13 @@ task("node3", 'Starts a JSON-RPC server on top of Hardhat EVM')
 
 		await deleteFolderRecursive(`./deployments/_arbitrum`);
 		await deleteFolderRecursive(`./deployments/_optimism`);
+        await deleteFolderRecursive(`./deployments/_ethereum`);
+        await deleteFolderRecursive(`./deployments/_mode`);
 
 		await copyFolder('./deployments/arbitrum', `./deployments/_arbitrum`);
 		await copyFolder('./deployments/optimism', `./deployments/_optimism`);
+        await copyFolder('./deployments/ethereum', `./deployments/_ethereum`);
+        await copyFolder('./deployments/mode', `./deployments/_mode`);
 
 		await run('node', {
 			...taskArgs,

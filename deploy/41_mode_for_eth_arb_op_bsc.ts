@@ -13,6 +13,38 @@ class Roles {
     static get PAYOUT_EXECUTOR_ROLE() { return '0xd77df84835b214746cc9546302d3e1df1d6b06740a1f528273c85999497318eb'; }
 }
 
+const modeConfig = {
+    networkName: "mode",
+    ccipRouterAddress: "0x24C40f13E77De2aFf37c280BA06c333531589bf1",
+    chainSelector: "7264351850409363825",
+    ccipPool: "0x66713d7E29D2F77AF7B0045a41D1770641D8AE93",
+
+    xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
+    exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
+    payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
+    roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
+    remoteHub: "0x85DE18Bc9719CF673A9F4dF709cbAB701BcC9704",
+    remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
+    market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
+    wrappedXusdToken: "0xAe770d24ec1580A13392E0B71067571351029203",
+};
+
+const ethConfig = {
+    networkName: "ethereum",
+    ccipRouterAddress: "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
+    chainSelector: "5009297550715157269",
+    ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c",
+
+    xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
+    exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
+    payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
+    roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
+    remoteHub: "0x85de18bc9719cf673a9f4df709cbab701bcc9704",
+    remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
+    market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
+    wrappedXusdToken: "0xAe770d24ec1580A13392E0B71067571351029203",
+};
+
 const bscConfig = {
     networkName: "bsc",
     ccipRouterAddress: "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
@@ -64,31 +96,33 @@ const opConfig = {
     portfolioManager: "0xB04ae3248216cE8A5B52620820f7eDe27281AE10",
 };
 
+let config = modeConfig;
+
 async function main() {
 
     let remoteHub = await getContract("RemoteHub");
     let remoteHubUpgrader = await getContract("RemoteHubUpgrader");
 
-    await (await remoteHub.allowlistDestinationChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHubUpgrader.allowlistDestinationChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHub.allowlistSourceChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHubUpgrader.allowlistSourceChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHub.allowlistSender(bscConfig.remoteHub, true)).wait();
-    await (await remoteHub.allowlistSender(bscConfig.remoteHubUpgrader, true)).wait();
-    await (await remoteHubUpgrader.allowlistSender(bscConfig.remoteHub, true)).wait();
-    await (await remoteHubUpgrader.allowlistSender(bscConfig.remoteHubUpgrader, true)).wait();
+    await (await remoteHub.allowlistDestinationChain(config.chainSelector, true)).wait();
+    await (await remoteHubUpgrader.allowlistDestinationChain(config.chainSelector, true)).wait();
+    await (await remoteHub.allowlistSourceChain(config.chainSelector, true)).wait();
+    await (await remoteHubUpgrader.allowlistSourceChain(config.chainSelector, true)).wait();
+    await (await remoteHub.allowlistSender(config.remoteHub, true)).wait();
+    await (await remoteHub.allowlistSender(config.remoteHubUpgrader, true)).wait();
+    await (await remoteHubUpgrader.allowlistSender(config.remoteHub, true)).wait();
+    await (await remoteHubUpgrader.allowlistSender(config.remoteHubUpgrader, true)).wait();
 
     await (await remoteHub.addChainItem({
-        chainSelector: bscConfig.chainSelector,
-        xusd: bscConfig.xusdToken,
-        exchange: bscConfig.exchange,
-        payoutManager: bscConfig.payoutManager,
-        roleManager: bscConfig.roleManager,
-        remoteHub: bscConfig.remoteHub,
-        remoteHubUpgrader: bscConfig.remoteHubUpgrader,
-        market: bscConfig.market,
-        wxusd: bscConfig.wrappedXusdToken,
-        ccipPool: bscConfig.ccipPool
+        chainSelector: config.chainSelector,
+        xusd: config.xusdToken,
+        exchange: config.exchange,
+        payoutManager: config.payoutManager,
+        roleManager: config.roleManager,
+        remoteHub: config.remoteHub,
+        remoteHubUpgrader: config.remoteHubUpgrader,
+        market: config.market,
+        wxusd: config.wrappedXusdToken,
+        ccipPool: config.ccipPool
     })).wait();
 
         

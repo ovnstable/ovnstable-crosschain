@@ -11,9 +11,9 @@ async function main() {
     // let usdc = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
     // let asset = await ethers.getContractAt(ERC20, usdc, signer);
 
-    // await (await xusdToken.approve(remoteHub.target, "100000")).wait();
+    await (await xusdToken.approve(remoteHub.target, "5000")).wait();
     console.log('Asset approve done');
-    await (await remoteHub.crossTransfer(signer.address, "100000", "11344663589394136015", {value: "1000000"})).wait();
+    await (await remoteHub.crossTransfer(signer.address, "5000", "7264351850409363825", {value: "1000000000"})).wait();
     console.log('RemoteHub.crossTransfer done');
 }
 

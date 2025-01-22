@@ -23,9 +23,10 @@ async function getContract(name: string): Promise<any> {
     let networkName = (process.env.NETWORK === 'localhost' ? '_' : '') + (process.env.NETWORK === 'localhost' ? process.env.NET : process.env.NETWORK);
     
     let signer = await initWallet();
-    // console.log("networkName in getContract:", networkName);
+    console.log("networkName in getContract:", networkName);
     
     const searchPath = fromDir(appRoot.path, path.join(networkName, `${name}.json`));
+    console.log("searchPath", searchPath);
     if (searchPath === undefined) {
         throw new Error(`Contract file not found for ${name} on ${networkName}`);
     }

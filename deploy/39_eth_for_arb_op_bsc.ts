@@ -13,6 +13,22 @@ class Roles {
     static get PAYOUT_EXECUTOR_ROLE() { return '0xd77df84835b214746cc9546302d3e1df1d6b06740a1f528273c85999497318eb'; }
 }
 
+const ethConfig = {
+    networkName: "ethereum",
+    ccipRouterAddress: "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
+    chainSelector: "5009297550715157269",
+    ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c",
+
+    xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
+    exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
+    payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
+    roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
+    remoteHub: "0x85de18bc9719cf673a9f4df709cbab701bcc9704",
+    remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
+    market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
+    wrappedXusdToken: "0xAe770d24ec1580A13392E0B71067571351029203",
+};
+
 const bscConfig = {
     networkName: "bsc",
     ccipRouterAddress: "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
@@ -69,27 +85,27 @@ async function main() {
     let remoteHub = await getContract("RemoteHub");
     let remoteHubUpgrader = await getContract("RemoteHubUpgrader");
 
-    await (await remoteHub.allowlistDestinationChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHubUpgrader.allowlistDestinationChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHub.allowlistSourceChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHubUpgrader.allowlistSourceChain(bscConfig.chainSelector, true)).wait();
-    await (await remoteHub.allowlistSender(bscConfig.remoteHub, true)).wait();
-    await (await remoteHub.allowlistSender(bscConfig.remoteHubUpgrader, true)).wait();
-    await (await remoteHubUpgrader.allowlistSender(bscConfig.remoteHub, true)).wait();
-    await (await remoteHubUpgrader.allowlistSender(bscConfig.remoteHubUpgrader, true)).wait();
+    await (await remoteHub.allowlistDestinationChain(ethConfig.chainSelector, true)).wait();
+    await (await remoteHubUpgrader.allowlistDestinationChain(ethConfig.chainSelector, true)).wait();
+    await (await remoteHub.allowlistSourceChain(ethConfig.chainSelector, true)).wait();
+    await (await remoteHubUpgrader.allowlistSourceChain(ethConfig.chainSelector, true)).wait();
+    await (await remoteHub.allowlistSender(ethConfig.remoteHub, true)).wait();
+    await (await remoteHub.allowlistSender(ethConfig.remoteHubUpgrader, true)).wait();
+    await (await remoteHubUpgrader.allowlistSender(ethConfig.remoteHub, true)).wait();
+    await (await remoteHubUpgrader.allowlistSender(ethConfig.remoteHubUpgrader, true)).wait();
 
-    await (await remoteHub.addChainItem({
-        chainSelector: bscConfig.chainSelector,
-        xusd: bscConfig.xusdToken,
-        exchange: bscConfig.exchange,
-        payoutManager: bscConfig.payoutManager,
-        roleManager: bscConfig.roleManager,
-        remoteHub: bscConfig.remoteHub,
-        remoteHubUpgrader: bscConfig.remoteHubUpgrader,
-        market: bscConfig.market,
-        wxusd: bscConfig.wrappedXusdToken,
-        ccipPool: bscConfig.ccipPool
-    })).wait();
+    // await (await remoteHub.addChainItem({
+    //     chainSelector: ethConfig.chainSelector,
+    //     xusd: ethConfig.xusdToken,
+    //     exchange: ethConfig.exchange,
+    //     payoutManager: ethConfig.payoutManager,
+    //     roleManager: ethConfig.roleManager,
+    //     remoteHub: ethConfig.remoteHub,
+    //     remoteHubUpgrader: ethConfig.remoteHubUpgrader,
+    //     market: ethConfig.market,
+    //     wxusd: ethConfig.wrappedXusdToken,
+    //     ccipPool: ethConfig.ccipPool
+    // })).wait();
 
         
 }

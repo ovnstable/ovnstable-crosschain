@@ -5,7 +5,7 @@ async function main(): Promise<void> {
 
     let xusdToken: Contract = await getContract('XusdToken');
 
-    await xusdToken.changeTotalSupply("839580674986572875755028144");
+    await xusdToken.changeTotalSupply("839515520013658267725998818");
     
     console.log("done");
 }

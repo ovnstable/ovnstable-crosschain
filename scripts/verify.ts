@@ -181,31 +181,119 @@ async function main() {
     // });
     
 
-    let bscImpls = {
-      remoteHub: "0xaD4939705B9d1207415A4B2E7818714455fD9137",
-      remoteHubUpgrader: "0x09d39311b962aA803D32BD79DAA3Fe3ae9E5E579",
-      exchange: "0x60c8A332Fd6d67F80cC4906f31ce9c5043fab992",
-      market: "0xd9239aB483CdcE215dB4F4c344Ce6ea27E2EF9Cd",
-      roleManager: "0xe7Fe20C74E209C51671e7c54509846EF96eBA939",
-      portfolioManager: "0x65B6747470441c28D91B77dDFef6d4969805089b",
-      xusdToken: "0xB04ae3248216cE8A5B52620820f7eDe27281AE10",
-      payoutManager: "0xA9c6b33CDD4D5EA1929826A846a1c04Fb3a5732e",
-      wrappedXusdToken: "0xD63a1F77f159ED0D3Ac83dA100FdE4AdC14210Bf",
+    // let bscImpls = {
+    //   remoteHub: "0xaD4939705B9d1207415A4B2E7818714455fD9137",
+    //   remoteHubUpgrader: "0x09d39311b962aA803D32BD79DAA3Fe3ae9E5E579",
+    //   exchange: "0x60c8A332Fd6d67F80cC4906f31ce9c5043fab992",
+    //   market: "0xd9239aB483CdcE215dB4F4c344Ce6ea27E2EF9Cd",
+    //   roleManager: "0xe7Fe20C74E209C51671e7c54509846EF96eBA939",
+    //   portfolioManager: "0x65B6747470441c28D91B77dDFef6d4969805089b",
+    //   xusdToken: "0xB04ae3248216cE8A5B52620820f7eDe27281AE10",
+    //   payoutManager: "0xA9c6b33CDD4D5EA1929826A846a1c04Fb3a5732e",
+    //   wrappedXusdToken: "0xD63a1F77f159ED0D3Ac83dA100FdE4AdC14210Bf",
+    // }
+
+    // for (const [key, value] of Object.entries(bscImpls)) {
+      
+    //   let name = "";
+    //   if (key === "payoutManager") {
+    //       name = "contracts/payoutManagers/BscPayoutManager.sol:BscPayoutManager";
+    //   }
+
+    //   let constructorArguments = [];
+
+    //   if (key === "remoteHub") {
+    //     constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE"];
+    //   } else if (key === "remoteHubUpgrader") {
+    //     constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE", "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68"];
+    //   }
+
+
+    //   if (name === "") {
+    //     await hre.run("verify:verify", {
+    //         address: value,
+    //         constructorArguments: constructorArguments
+    //     });
+    //   } else {
+    //     await hre.run("verify:verify", {
+    //       address: value,
+    //       constructorArguments: constructorArguments,
+    //       contract: name
+    //     });
+    //   }
+
+    //   console.log("Verified ", key, " ", value);
+    // }
+
+
+    // let ethImpls = {
+    //   // remoteHub: "0xe2b3E27f96902D88C95610b72f4C76EBfB76f1F0",
+    //   // remoteHubUpgrader: "0xE597c0a82c74E97Dc3B18bEA0D2585Bc1E7e5463",
+    //   exchange: "0x1c592E055Ec06A68f89499fe0aCDd262b30Da361",
+    //   market: "0xCd892521038cb29d7Cc86D9149a3e1433aa3BfD1",
+    //   roleManager: "0xA7D93e5a129f1DAA5d615141bB5E02be432d9679",
+    //   xusdToken: "0xd9c4B3d7D014A5C37e751D5DF9b209213d04d91c",
+    //   payoutManager: "0xaD4939705B9d1207415A4B2E7818714455fD9137",
+    //   wrappedXusdToken: "0x95aC4b073c854e74212782ceFd579613d210B521",
+
+    // }
+
+    // for (const [key, value] of Object.entries(ethImpls)) {
+      
+    //   let name = "";
+    //   if (key === "payoutManager") {
+    //       name = "contracts/payoutManagers/EthereumPayoutManager.sol:EthereumPayoutManager";
+    //   }
+
+    //   let constructorArguments = [];
+
+    //   if (key === "remoteHub") {
+    //     constructorArguments = ["0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D"];
+    //   } else if (key === "remoteHubUpgrader") {
+    //     constructorArguments = ["0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D", "0x85de18bc9719cf673a9f4df709cbab701bcc9704"];
+    //   }
+
+
+    //   if (name === "") {
+    //     await hre.run("verify:verify", {
+    //         address: value,
+    //         constructorArguments: constructorArguments
+    //     });
+    //   } else {
+    //     await hre.run("verify:verify", {
+    //       address: value,
+    //       constructorArguments: constructorArguments,
+    //       contract: name
+    //     });
+    //   }
+
+    //   console.log("Verified ", key, " ", value);
+    // }
+
+    let modeImpls = {
+      remoteHub: "0x336523Ca318Ea0d631F72cF4875e6796BB2e617e",
+      remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
+      exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
+      market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
+      roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
+      xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
+      payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
+      wrappedXusdToken: "0x500b4fed3a3D07A9EC4B97e1D223fE6109fd5D67",
     }
 
-    for (const [key, value] of Object.entries(bscImpls)) {
+    for (const [key, value] of Object.entries(modeImpls)) {
       
       let name = "";
       if (key === "payoutManager") {
-          name = "contracts/payoutManagers/BscPayoutManager.sol:BscPayoutManager";
+          name = "contracts/payoutManagers/ModePayoutManager.sol:ModePayoutManager";
       }
 
       let constructorArguments = [];
 
       if (key === "remoteHub") {
-        constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE"];
+        constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1"];
       } else if (key === "remoteHubUpgrader") {
-        constructorArguments = ["0x34B03Cb9086d7D758AC55af71584F81A598759FE", "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68"];
+        constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1", "0x85de18bc9719cf673a9f4df709cbab701bcc9704"];
       }
 
 
@@ -224,7 +312,6 @@ async function main() {
 
       console.log("Verified ", key, " ", value);
     }
-
 }
 
 

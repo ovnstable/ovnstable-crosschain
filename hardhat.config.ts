@@ -59,6 +59,14 @@ const config: HardhatUserConfig = {
     bsc: {
       url: process.env.BSC_RPC,
       accounts: [process.env.PRIVATE_KEY]
+    },
+    ethereum: {
+      url: process.env.ETHEREUM_RPC,
+      accounts: [process.env.PRIVATE_KEY]
+    },
+    mode: {
+      url: process.env.MODE_RPC,
+      accounts: [process.env.PRIVATE_KEY]
     }
   },
   etherscan: {
@@ -78,6 +86,22 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api.bscscan.com/api",
           browserURL: "https://bscscan.com"
+        }
+      },
+      {
+        network: "ethereum",
+        chainId: 1,
+        urls: {
+          apiURL: "https://api.etherscan.io/api",
+          browserURL: "https://etherscan.io"
+        }
+      },
+      {
+        network: "mode",
+        chainId: 34443,
+        urls: {
+          apiURL: "https://explorer-mode-mainnet-0.t.conduit.xyz/api",
+          browserURL: "https://explorer-mode-mainnet-0.t.conduit.xyz:443"
         }
       }
     ]
