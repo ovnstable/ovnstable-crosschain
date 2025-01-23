@@ -270,48 +270,50 @@ async function main() {
     //   console.log("Verified ", key, " ", value);
     // }
 
-    let modeImpls = {
-      remoteHub: "0x336523Ca318Ea0d631F72cF4875e6796BB2e617e",
-      remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
-      exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
-      market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
-      roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
-      xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
-      payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
-      wrappedXusdToken: "0x500b4fed3a3D07A9EC4B97e1D223fE6109fd5D67",
-    }
+    // let modeImpls = {
+    //   remoteHub: "0x336523Ca318Ea0d631F72cF4875e6796BB2e617e",
+    //   remoteHubUpgrader: "0x1705E9E103dBaa234CD6D27B0E9CA8F4E4D47ec7",
+    //   exchange: "0x29A0dc4f509873673B7682B60598d393A1e591b7",
+    //   market: "0xfEeb025dA416cc5B8f8bf0988d0cF2eA4362c0b9",
+    //   roleManager: "0xCCd1fBCE567E74d650F680d923D1BCc7C5130d4D",
+    //   xusdToken: "0x798295434111F5E088Ebeb892773E6A925d8E011",
+    //   payoutManager: "0x5560Eb50028b9f6547a83b8fAa52Ab9CB315aC68",
+    //   wrappedXusdToken: "0x500b4fed3a3D07A9EC4B97e1D223fE6109fd5D67",
+    // }
 
-    for (const [key, value] of Object.entries(modeImpls)) {
+    // for (const [key, value] of Object.entries(modeImpls)) {
       
-      let name = "";
-      if (key === "payoutManager") {
-          name = "contracts/payoutManagers/ModePayoutManager.sol:ModePayoutManager";
-      }
+    //   let name = "";
+    //   if (key === "payoutManager") {
+    //       name = "contracts/payoutManagers/ModePayoutManager.sol:ModePayoutManager";
+    //   }
 
-      let constructorArguments = [];
+    //   let constructorArguments = [];
 
-      if (key === "remoteHub") {
-        constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1"];
-      } else if (key === "remoteHubUpgrader") {
-        constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1", "0x85de18bc9719cf673a9f4df709cbab701bcc9704"];
-      }
+    //   if (key === "remoteHub") {
+    //     constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1"];
+    //   } else if (key === "remoteHubUpgrader") {
+    //     constructorArguments = ["0x24C40f13E77De2aFf37c280BA06c333531589bf1", "0x85de18bc9719cf673a9f4df709cbab701bcc9704"];
+    //   }
 
 
-      if (name === "") {
-        await hre.run("verify:verify", {
-            address: value,
-            constructorArguments: constructorArguments
-        });
-      } else {
-        await hre.run("verify:verify", {
-          address: value,
-          constructorArguments: constructorArguments,
-          contract: name
-        });
-      }
+    //   if (name === "") {
+    //     await hre.run("verify:verify", {
+    //         address: value,
+    //         constructorArguments: constructorArguments
+    //     });
+    //   } else {
+    //     await hre.run("verify:verify", {
+    //       address: value,
+    //       constructorArguments: constructorArguments,
+    //       contract: name
+    //     });
+    //   }
 
-      console.log("Verified ", key, " ", value);
-    }
+    //   console.log("Verified ", key, " ", value);
+    // }
+
+
 }
 
 

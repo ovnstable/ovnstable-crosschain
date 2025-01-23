@@ -5,16 +5,17 @@ const hre = require("hardhat");
 const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 
-const filename = "01_upgrade_to_ccip";
+const filename = "02_fix_name";
 
 async function main(): Promise<void> {
 
-    let networkName = await switchNetwork();
+    // let networkName = await switchNetwork();
     let signer = await initWallet();
 
-    const { getProposalItems } = await import(`./scripts/${networkName}/${filename}`);
+    // const { getProposalItems } = await import(`./scripts/${networkName}/${filename}`);
+    const { getProposalItems } = await import(`./scripts/arbitrum/${filename}`);
     let proposalItems = await getProposalItems();
-    await testProposal(proposalItems);
+    // await testProposal(proposalItems);
     // let roleManager = await getContract('RoleManager');
     // let exchange = await getContract('ExchangeMother');
     // let lol = await roleManager.hasRole(Roles.PORTFOLIO_AGENT_ROLE, "0x086dFe298907DFf27BD593BD85208D57e0155c94");
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
     // console.log("rm", rm);
     // await exchange.unpause();
     
-    // await createProposal(filename, proposalItems);
+    await createProposal(filename, proposalItems);
 }
 
 main()
