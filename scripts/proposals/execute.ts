@@ -5,7 +5,7 @@ import { getContract, initWallet } from "../helpers/script-utils";
 import { Batch, PREDECESSOR } from "../helpers/governance";
 
 const network = "arbitrum";
-const filename = "01_upgrade_to_ccip";
+const filename = "02_fix_name";
 
 let gas = {
     gasPrice: 200_000_000,

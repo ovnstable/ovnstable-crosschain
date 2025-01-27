@@ -79,7 +79,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
     event CompensateLossUpdate(uint256 compensateLoss, uint256 denominator);
     event MaxAbroadUpdated(uint256 abroad);
     event EventExchange(string label, uint256 amount, uint256 fee, address sender);
-    event PayoutEvent(uint256 profit, uint256 excessProfit, uint256 insurancePremium, uint256 insuranceLoss);
+    event PayoutEvent(uint256 profit, uint256 newLiquidityIndex, uint256 excessProfit, uint256 insurancePremium, uint256 insuranceLoss);
     event NextPayoutTime(uint256 nextPayoutTime);
     event PayoutSimulationForInsurance(int256 premium);
 
@@ -489,7 +489,8 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
         remoteHub.execMultiPayout{ value: address(this).balance }(newDelta);
 
-        emit PayoutEvent(profit, excessProfit, premium, loss);
+        // newLiquidityIndex parameter maintains backward compatibility for analytic service
+        emit PayoutEvent(profit, 0, excessProfit, premium, loss);
 
         // Update next payout time. Cycle for preventing gaps
         // Allow execute payout every day in one time (10:00)

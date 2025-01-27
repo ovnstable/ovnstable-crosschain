@@ -5,7 +5,7 @@ const hre = require("hardhat");
 const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 
-const filename = "02_fix_name";
+const filename = "03_upgrade_exchange";
 
 async function main(): Promise<void> {
 
