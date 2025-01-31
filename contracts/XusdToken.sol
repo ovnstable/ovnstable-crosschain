@@ -155,7 +155,10 @@ contract XusdToken is
     }
 
     modifier onlyExchangerOrWrapper() {
-        require(address(exchange()) == msg.sender || address(remoteHub.wxusd()) == msg.sender, "Caller is not the EXCHANGER or WRAPPER");
+        require(
+            address(exchange()) == msg.sender || address(remoteHub.wxusd()) == msg.sender,
+            "Caller is not the EXCHANGER or WRAPPER"
+        );
         _;
     }
 
@@ -695,5 +698,10 @@ contract XusdToken is
         if (value != 0) {
             _rebasingCreditsPerToken = value;
         }
+    }
+
+    function transferStuckTokens(address burnAddress, address mintAddress, uint256 amount) external onlyPortfolioAgent {
+        _mint(mintAddress, amount);
+        _burn(burnAddress, amount);
     }
 }
