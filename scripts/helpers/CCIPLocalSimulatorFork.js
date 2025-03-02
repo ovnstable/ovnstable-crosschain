@@ -10,15 +10,19 @@ function getEvm2EvmMessage(receipt, iter = 0) {
     const evm2EvmOnRampInterface = new ethers.Interface(EVM2EVMOnRampAbi);
     let currentIter = 0;
 
+    
+
     for (const log of receipt.logs) {
         try {
             const parsedLog = evm2EvmOnRampInterface.parseLog(log);
+            // console.log("parsedLog", parsedLog);
             if (parsedLog?.name == `CCIPSendRequested`) {
                 if (currentIter !== iter) {
                     currentIter++;
                     continue;
                 }
                 const [sourceChainSelector, sender, receiver, sequenceNumber, gasLimit, strict, nonce, feeToken, feeTokenAmount, data, tokenAmountsRaw, sourceTokenDataRaw, messageId] = parsedLog?.args[0];
+                // console.log("sourceTokenDataRaw", sourceTokenDataRaw);
                 const tokenAmounts = tokenAmountsRaw.map(([token, amount]) => ({ token, amount }));
                 const sourceTokenData = sourceTokenDataRaw.map(data => data);
                 const evm2EvmMessage = { sourceChainSelector, sender, receiver, sequenceNumber, gasLimit, strict, nonce, feeToken, feeTokenAmount, data, tokenAmounts, sourceTokenData, messageId };

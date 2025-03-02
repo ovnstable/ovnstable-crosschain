@@ -18,11 +18,12 @@ const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 import type { ContractFactory, Contract } from 'ethers';
 import { fromDir, Roles, ThreeContracts, Contracts, ContractTypes, ContractFactoryTypes, MultichainCallItem, RemoteHub, RemoteHubUpgrader, ExchangeChild, ExchangeMother, Market, PortfolioManager, RoleManager, WrappedXusdToken, XusdToken, PayoutManager } from '../scripts/helpers/script-utils';
-import { getProposalItems } from '../scripts/proposals/scripts/arbitrum/01_upgrade_to_ccip';
+
+import { getProposalItems } from '../scripts/proposals/scripts/arbitrum/04_upgrade_all_rh';
 
 // instalation: npm install (not yarn install)
 // 1st Terminal: npx hardhat node3
-// 2nd Terminal: npx hardhat run ./test/test4.ts --network localhost --net arbitrum
+// 2nd Terminal: npx hardhat run ./test/test5.ts --network localhost --net arbitrum
 
 let contracts: ThreeContracts = [undefined, undefined, undefined];
 
@@ -44,22 +45,32 @@ const chain = [
     //     ccipPool: "0xd72F7010f0Fa621aB0869e61e9bb4e3cC887c66c"
     // },
     {
-        NAME: "OPTIMISM",
-        RPC_URL: process.env.OPTIMISM_RPC,
-        BLOCK_NUMBER: Number(process.env.OPTIMISM_BLOCK_NUMBER),
-        ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
-        chainSelector: "3734403246176062136",
-        ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
+        NAME: "MODE",
+        RPC_URL: process.env.MODE_RPC,
+        BLOCK_NUMBER: Number(process.env.MODE_BLOCK_NUMBER),
+        ccipRouterAddress: "0x24C40f13E77De2aFf37c280BA06c333531589bf1",
+        chainSelector: "7264351850409363825",
+        ccipPool: "0x66713d7E29D2F77AF7B0045a41D1770641D8AE93"
     },
     // {
-    //     NAME: "MODE",
-    //     RPC_URL: process.env.MODE_RPC,
-    //     BLOCK_NUMBER: Number(process.env.MODE_BLOCK_NUMBER),
-    //     ccipRouterAddress: "0x24C40f13E77De2aFf37c280BA06c333531589bf1",
-    //     chainSelector: "7264351850409363825",
-    //     ccipPool: "0x66713d7E29D2F77AF7B0045a41D1770641D8AE93"
+    //     NAME: "OPTIMISM",
+    //     RPC_URL: process.env.OPTIMISM_RPC,
+    //     BLOCK_NUMBER: Number(process.env.OPTIMISM_BLOCK_NUMBER),
+    //     ccipRouterAddress: "0x3206695CaE29952f4b0c22a169725a865bc8Ce0f",
+    //     chainSelector: "3734403246176062136",
+    //     ccipPool: "0xe660606961DF8855E589d59795FAe4b0ecD41FD3",
+    // },
+    // {
+    //     NAME: "BSC",
+    //     RPC_URL: process.env.BSC_RPC,
+    //     BLOCK_NUMBER: Number(process.env.BSC_BLOCK_NUMBER),
+    //     ccipRouterAddress: "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
+    //     chainSelector: "11344663589394136015",
+    //     ccipPool: "0xD9c00B874fB86d2A09b5BA1DfF7fb05554DB4B6d",
     // }
 ]
+
+let currentDestChain = "mode_";
 
 enum ChainType {
     SOURCE = 0,
@@ -153,7 +164,8 @@ async function transferETH(amount: number, to: string) {
 async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
-    networkName = networkName === "ARBITRUM" ? "_arbitrum" : "_optimism";
+
+    networkName = networkName === "ARBITRUM" ? "arbitrum_" : currentDestChain;
 
     let proxy;
     try {
@@ -223,7 +235,7 @@ async function moveRules<T extends keyof ContractTypes>(contract: ContractTypes[
 
 async function initDeploySet(chainType: ChainType) {
 
-    console.log("Resetting network to", chain[chainType].NAME);
+    // console.log("Resetting network to", chain[chainType].NAME);
     await network.provider.request({
         method: "hardhat_reset",
         params: [{
@@ -240,7 +252,7 @@ async function initDeploySet(chainType: ChainType) {
     let dev5Signer = await ethers.getSigner(dev5);
     let richSigner = await ethers.getSigner(wxusdRich);
 
-    let networkName = chainType == ChainType.SOURCE ? "_arbitrum" : "_optimism";
+    let networkName = chainType == ChainType.SOURCE ? "arbitrum_" : currentDestChain;
 
     let remoteHub = (await getContract("RemoteHub", networkName)) as RemoteHub;
     let remoteHubUpgrader = (await getContract("RemoteHubUpgrader", networkName)) as RemoteHubUpgrader;
@@ -250,7 +262,28 @@ async function initDeploySet(chainType: ChainType) {
     let portfolioManager = chainType == ChainType.SOURCE ? (await getContract("PortfolioManager", networkName)) as PortfolioManager : undefined;
     let xusdToken = (await getContract("XusdToken", networkName)) as XusdToken;
     let wrappedXusdToken = (await getContract("WrappedXusdToken", networkName)) as WrappedXusdToken;
-    let payoutManager = (await getContract(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : "OptimismPayoutManager", networkName)) as PayoutManager;    
+
+    let payoutManager = null; //(await getContract(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : "OptimismPayoutManager", networkName)) as PayoutManager;    
+
+    if (chainType == ChainType.SOURCE) {
+        console.log("hello");
+        remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector, chain[ChainType.SOURCE].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, timelock)) as RemoteHub;
+        console.log("hello2");
+        // let proposalItems = await getProposalItems();
+        // await testProposal(proposalItems);
+    } else {
+        // remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector, chain[chainType].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, dev5)) as RemoteHub;
+        // remoteHubUpgrader = (await deployOrUpgrade("RemoteHubUpgrader", [chain[chainType].chainSelector], [chain[chainType].ccipRouterAddress, remoteHub.target], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, dev5)) as RemoteHubUpgrader;
+        // wrappedXusdToken = (await deployOrUpgrade("WrappedXusdToken", ["Wrapped xUSD", "wxUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, dev5)) as WrappedXusdToken;
+        // xusdToken = (await deployOrUpgrade("XusdToken", ["xUSD", "xUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, dev5)) as XusdToken;
+        // const wrapper = await hre.ethers.getSigner(wrappedXusdToken.target);
+        // await hre.network.provider.request({
+        //     method: "hardhat_impersonateAccount",
+        //     params: [wrappedXusdToken.target]
+        // });
+        // await transferETH(2, wrappedXusdToken.target);
+        // await xusdToken.connect(wrapper).mint(dev5, "1000000");
+    }
 
     await hre.network.provider.request({
         method: "hardhat_impersonateAccount",
@@ -273,36 +306,11 @@ async function initDeploySet(chainType: ChainType) {
         params: [timelock]
     });
 
-    
-
     await transferETH(2, dev5Signer.address);
     await transferETH(2, dev1Signer.address);
     await transferETH(2, timelock);
     await transferETH(2, richSigner.address);
     await transferETH(2, dev4);
-
-    if (chainType == ChainType.SOURCE) {
-        // remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector, chain[ChainType.SOURCE].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, dev5)) as RemoteHub;
-        // let proposalItems = await getProposalItems();
-        // await testProposal(proposalItems);
-    } else {
-
-        console.log("Moving rules", dev5Signer.address, remoteHub.target);
-        await moveRules(market, dev5, remoteHub.target as string, remoteHub.target as string);
-        await moveRules(remoteHubUpgrader, dev5, remoteHub.target as string, remoteHub.target as string);
-        await moveRules(remoteHub, dev5, remoteHubUpgrader.target as string, remoteHubUpgrader.target as string);
-
-        // remoteHub = (await deployOrUpgrade("RemoteHub", [chain[chainType].chainSelector, chain[chainType].chainSelector], [chain[chainType].ccipRouterAddress], ['constructor', 'state-variable-immutable'], chain[chainType].NAME, dev5)) as RemoteHub;
-        // wrappedXusdToken = (await deployOrUpgrade("WrappedXusdToken", ["Wrapped xUSD", "wxUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, dev5)) as WrappedXusdToken;
-        // xusdToken = (await deployOrUpgrade("XusdToken", ["xUSD", "xUSD", 6, remoteHub.target], [], [], chain[chainType].NAME, dev5)) as XusdToken;
-        // const wrapper = await hre.ethers.getSigner(wrappedXusdToken.target);
-        // await hre.network.provider.request({
-        //     method: "hardhat_impersonateAccount",
-        //     params: [wrappedXusdToken.target]
-        // });
-        // await transferETH(2, wrappedXusdToken.target);
-        // await xusdToken.connect(wrapper).mint(dev5, "1000000");
-    }
 
     if (chainType == ChainType.SOURCE) {
         // await wrappedXusdToken.connect(richSigner).transfer(chain[ChainType.SOURCE].ccipPool, 100000000);
@@ -338,7 +346,7 @@ async function applyMessage(_to: ChainType, multichainCallItems: any, iter: numb
 
     await initDeploySet(ChainType.SOURCE);
 
-    let tx = await (contracts[ChainType.SOURCE] as Contracts).remoteHub.connect(await ethers.getSigner(dev5)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
+    let tx = await (contracts[ChainType.SOURCE] as Contracts).remoteHub.connect(await ethers.getSigner(timelock)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
 
     // console.log("Transaction hash: ", tx.hash);
     const receipt = await tx.wait();
@@ -429,9 +437,13 @@ async function setParamTest(_to: ChainType) {
     const before = await TO.market.assetToken();
     console.log(`usdcToken before:`, before);
 
+    await initDeploySet(ChainType.SOURCE);
+
     const signature = 'setToken(address)';
     const params1 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da1'];
+    const params2 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da2'];
     const encoded1 = encodeWithSignature(signature, params1);
+    const encoded2 = encodeWithSignature(signature, params2);
 
     let multichainCallItems = [{
         chainSelector: chain[_to].chainSelector,
@@ -444,65 +456,11 @@ async function setParamTest(_to: ChainType) {
         }]
     }]
 
-    // let tx = await (contracts[ChainType.DESTINATION] as Contracts).remoteHub.connect(await ethers.getSigner(dev5)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
-    // const receipt = await tx.wait();
     await applyMessage(_to, multichainCallItems);
 
     const after = await TO.market.assetToken();
     console.log(`usdcToken after:`, after);
 }
-
-async function setRoleTest(contractName: string) {
-
-    let TO = contracts[ChainType.DESTINATION] as Contracts;
-
-    let executor;
-    let receiver;
-    if (contractName === "RemoteHub") {
-        executor = TO.remoteHub;
-        receiver = TO.remoteHubUpgrader;
-    } else if (contractName === "RemoteHubUpgrader") {
-        executor = TO.remoteHubUpgrader;
-        receiver = TO.remoteHub;
-    } else {
-        executor = TO.market;
-        receiver = TO.remoteHub;
-    }
-
-    await initDeploySet(ChainType.DESTINATION);
-    
-    console.log(`executor:`, executor.target);
-    console.log(`role dev4:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, dev4));
-    console.log(`role dev5:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, dev5));
-    console.log(`role remoteHub:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, TO.remoteHub.target));
-    console.log(`role remoteHubUpgrader:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, TO.remoteHubUpgrader.target));
-    const signature = 'grantRole(bytes32,address)';
-    const params1 = [Roles.DEFAULT_ADMIN_ROLE, dev4];
-    const encoded1 = encodeWithSignature(signature, params1);
-
-    let multichainCallItems = [{
-        chainSelector: chain[ChainType.DESTINATION].chainSelector,
-        receiver: receiver.target,
-        token: "0x0000000000000000000000000000000000000000",
-        amount: 0,
-        batchData: [{
-            executor: executor.target,
-            data: encoded1
-        }]
-    }]
-
-    // let tx = await (contracts[ChainType.DESTINATION] as Contracts).remoteHub.connect(await ethers.getSigner(dev5)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
-    // const receipt = await tx.wait();
-    await applyMessage(ChainType.DESTINATION, multichainCallItems);
-
-    console.log(`role dev4:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, dev4));
-    console.log(`role dev5:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, dev5));
-    console.log(`role remoteHub:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, TO.remoteHub.target));
-    console.log(`role remoteHubUpgrader:`, await executor.hasRole(Roles.DEFAULT_ADMIN_ROLE, TO.remoteHubUpgrader.target));
-}
-
-
-
 
 async function payoutTest(_to: ChainType) {
 
@@ -539,8 +497,6 @@ async function makeUpgradeToData(newImpl: string, receiver: string, executor: st
 
 async function upgradeTest(contractName: string, type: string): Promise<boolean> {
 
-    // await initDeploySet(ChainType.DESTINATION);
-
     let S = contracts[ChainType.SOURCE] as Contracts;
     let D = contracts[ChainType.DESTINATION] as Contracts;
 
@@ -561,14 +517,10 @@ async function upgradeTest(contractName: string, type: string): Promise<boolean>
             receiver = D.remoteHub.target as string;
             executor = D.market.target as string;
         }
-        // console.log("newImpl", newImpl);
-        // let oldImpl = await getImplementationAddress(ethers.provider, executor);
-        // console.log("oldImpl", oldImpl);
+
         let multichainCallItems = await makeUpgradeToData(newImpl, receiver, executor, ChainType.DESTINATION);
-        // let tx = await (contracts[ChainType.DESTINATION] as Contracts).remoteHub.connect(await ethers.getSigner(dev5)).multichainCall(multichainCallItems, { value: "1000000000000000000" });
-        // const receipt = await tx.wait();
         await applyMessage(ChainType.DESTINATION, multichainCallItems);
-        
+
         let impl = await getImplementationAddress(ethers.provider, executor);
         if (impl !== newImpl) {
             throw new Error("Implementation mismatch");
@@ -656,18 +608,81 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
 
 async function main() {
 
+    let ch = "arbitrum";
+
     await initAllAddresses();
 
     // await payoutTest(ChainType.DESTINATION);
-    // expect(await upgradeTest("Market", "remote")).to.equal(true);
-    // expect(await upgradeTest("RemoteHubUpgrader", "remote")).to.equal(true);
-    // expect(await upgradeTest("RemoteHub", "remote")).to.equal(true);
-    // await setParamTest(ChainType.DESTINATION);
-    // await setRoleTest("Market");
-    // await setRoleTest("RemoteHubUpgrader");
-    await setRoleTest("RemoteHub");
 
-    // expect(await transferTest(ChainType.SOURCE, ChainType.DESTINATION)).to.equal(true);
+    let rha = await getContract('RemoteHub', "arbitrum");
+    let rho = await getContract('RemoteHub', "optimism");
+    let rhb = await getContract('RemoteHub', "bsc");
+    let rhe = await getContract('RemoteHub', "ethereum");
+    let rhm = await getContract('RemoteHub', "mode");
+    let rhrh = rha;
+
+    await initDeploySet(ch === "arbitrum" ? ChainType.SOURCE : ChainType.DESTINATION);
+    console.log("old impl", await getImplementationAddress(ethers.provider, rhrh.target));
+
+    await initDeploySet(ChainType.SOURCE);
+    let proposalItems = await getProposalItems();
+    console.log(1);
+    let receipt = await testProposal(proposalItems);
+    console.log(2);
+    // console.log("Transaction hash: ", receipt);
+    // const receipt = await tx.wait();
+    if (!receipt) return;
+
+    if (ch !== "arbitrum") {
+
+        const evm2EvmMessage = getEvm2EvmMessage(receipt, 0);
+        
+        if (!evm2EvmMessage) return;
+
+        await initDeploySet(ChainType.DESTINATION);
+        // console.log(evm2EvmMessage);
+        await routeMessage(chain[ChainType.DESTINATION].ccipRouterAddress, evm2EvmMessage);
+    }
+
+    console.log("new impl", await getImplementationAddress(ethers.provider, rhrh.target));
+    // let impl = await getImplementationAddress(ethers.provider, executor);
+    // if (impl !== newImpl) {
+    //     throw new Error("Implementation mismatch");
+    // }
+    // console.log(evm2EvmMessage);
+
+    // await initDeploySet(_to);
+
+    // console.log(_to, evm2EvmMessage);
+    // await routeMessage(chain[_to].ccipRouterAddress, evm2EvmMessage);
+
+
+
+
+    // let S = contracts[ChainType.SOURCE] as Contracts;
+    // let D = contracts[ChainType.DESTINATION] as Contracts;
+
+    // let multichainCallItems = mcci;
+    
+    // await applyMessage(ChainType.DESTINATION, multichainCallItems);
+    // let impl = await getImplementationAddress(ethers.provider, executor);
+    // if (impl !== newImpl) {
+    //     throw new Error("Implementation mismatch");
+    // }
+
+    
+    // let events = await multichainCallLocal(S, D, multichainCallItems);
+    // const upgradedEvent = events.find(event => event.name === 'Upgraded');
+    // if (upgradedEvent) {
+    //     if (newImpl !== upgradedEvent.args.implementation) {
+    //         throw new Error("Implementation mismatch");
+    //     }
+    // } else {
+    //     return false;
+    // }
+    
+    // return true;
+
     // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
 }
 

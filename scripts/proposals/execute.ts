@@ -5,7 +5,7 @@ import { getContract, initWallet } from "../helpers/script-utils";
 import { Batch, PREDECESSOR } from "../helpers/governance";
 
 const network = "arbitrum";
-const filename = "03_upgrade_exchange";
+const filename = "04_upgrade_all_rh";
 
 let gas = {
     gasPrice: 200_000_000,
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     console.log("timelock.address", timelock.target);
     timelock = await ethers.getContractAt(AGENT_TIMELOCK_ABI, timelock.target, await initWallet());
 
-    for (let i = 0; i < addresses.length; i++) {
+    for (let i = 1; i < addresses.length; i++) {
         
         const hash = await timelock.hashOperation(addresses[i], values[i], datas[i], PREDECESSOR, salt[i]);
         console.log("HashOperation: " + hash);
@@ -51,6 +51,7 @@ async function main(): Promise<void> {
         if (timestamp > 1) {
             await timelock.execute(addresses[i], values[i], datas[i], PREDECESSOR, salt[i], gas);
         }
+        return;
     }
 }
 

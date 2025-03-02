@@ -321,7 +321,11 @@
           }
         },
         "namespaces": {}
-      }
+      },
+      "allAddresses": [
+        "0xd3957E44267081a3873897AE6e4f67809f8F38B5",
+        "0x00bBD0B38E9374c6C8D049424d3D25586A3cffa2"
+      ]
     },
     "cb1e4fee026fcdf8be45f10a28e202e718d76120a733a44bcb67b265c0449f66": {
       "address": "0x66C5544D09B224fb6B7B21CD494D9049C0f0EC40",
@@ -2801,9 +2805,9 @@
         "namespaces": {}
       }
     },
-    "1b6ae2fe9b7e3318071baa287a4c124334074cc7302a925a5144e9e7fb6b48dd": {
-      "address": "0xA262e4cFD025ECd3C33E37CE4D661632fc4a2bf3",
-      "txHash": "0xf7d03cb4fc078e620fe6a4cbbb3667e277c08d7dd52bef9a681a46759a7cc731",
+    "f214ecc98664229f08652b72f75bf0225580b9e148aeb3cc0c1b49986c77c7b3": {
+      "address": "0x26085bDc0230AA48AFE8ce3F5f007694f2E44D97",
+      "txHash": "0x3f5a786aa0df43e51909eb6ca52bd8f0ebd133846d494d157f98e9e896de4321",
       "layout": {
         "solcVersion": "0.8.20",
         "storage": [
@@ -2873,210 +2877,166 @@
             "src": "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol:111"
           },
           {
-            "label": "_paused",
+            "label": "_creditBalances",
             "offset": 0,
             "slot": "251",
-            "type": "t_bool",
-            "contract": "PausableUpgradeable",
-            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:29"
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:41"
           },
           {
-            "label": "__gap",
+            "label": "_allowances",
             "offset": 0,
             "slot": "252",
-            "type": "t_array(t_uint256)49_storage",
-            "contract": "PausableUpgradeable",
-            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:116"
+            "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:43"
           },
           {
-            "label": "reentrancyGuardStatus",
+            "label": "_totalSupply",
             "offset": 0,
-            "slot": "301",
+            "slot": "253",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:23"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:45"
           },
           {
-            "label": "asset",
+            "label": "_name",
             "offset": 0,
-            "slot": "302",
-            "type": "t_contract(IERC20)3099",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:25"
+            "slot": "254",
+            "type": "t_string_storage",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:47"
           },
           {
-            "label": "portfolioManager",
+            "label": "_symbol",
             "offset": 0,
-            "slot": "303",
-            "type": "t_contract(IPortfolioManager)6255",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:27"
+            "slot": "255",
+            "type": "t_string_storage",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:48"
           },
           {
-            "label": "profitRecipient",
+            "label": "_rebasingCredits",
             "offset": 0,
-            "slot": "304",
-            "type": "t_address",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:29"
-          },
-          {
-            "label": "buyFee",
-            "offset": 0,
-            "slot": "305",
+            "slot": "256",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:31"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:50"
           },
           {
-            "label": "buyFeeDenominator",
+            "label": "_rebasingCreditsPerToken",
             "offset": 0,
-            "slot": "306",
+            "slot": "257",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:32"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:51"
           },
           {
-            "label": "redeemFee",
+            "label": "nonRebasingSupply",
             "offset": 0,
-            "slot": "307",
+            "slot": "258",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:34"
-          },
-          {
-            "label": "redeemFeeDenominator",
-            "offset": 0,
-            "slot": "308",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:35"
-          },
-          {
-            "label": "nextPayoutTime",
-            "offset": 0,
-            "slot": "309",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:38"
-          },
-          {
-            "label": "payoutPeriod",
-            "offset": 0,
-            "slot": "310",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:41"
-          },
-          {
-            "label": "payoutTimeRange",
-            "offset": 0,
-            "slot": "311",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:43"
-          },
-          {
-            "label": "blockGetter",
-            "offset": 0,
-            "slot": "312",
-            "type": "t_address",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:45"
-          },
-          {
-            "label": "lastBlockNumber",
-            "offset": 0,
-            "slot": "313",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:48"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:53"
           },
           {
             "label": "DELETED_1",
             "offset": 0,
-            "slot": "314",
+            "slot": "259",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:50"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:55"
           },
           {
-            "label": "abroadMax",
+            "label": "DELETED_2",
             "offset": 0,
-            "slot": "315",
+            "slot": "260",
             "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:51"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:56"
           },
           {
-            "label": "insurance",
+            "label": "DELETED_3",
             "offset": 0,
-            "slot": "316",
+            "slot": "261",
+            "type": "t_struct(AddressSet)4301_storage",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:58"
+          },
+          {
+            "label": "DELETED_4",
+            "offset": 0,
+            "slot": "263",
             "type": "t_address",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:53"
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:60"
           },
           {
-            "label": "oracleLoss",
-            "offset": 0,
-            "slot": "317",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:55"
-          },
-          {
-            "label": "oracleLossDenominator",
-            "offset": 0,
-            "slot": "318",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:56"
-          },
-          {
-            "label": "compensateLoss",
-            "offset": 0,
-            "slot": "319",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:58"
-          },
-          {
-            "label": "compensateLossDenominator",
-            "offset": 0,
-            "slot": "320",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:59"
-          },
-          {
-            "label": "profitFee",
-            "offset": 0,
-            "slot": "321",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:61"
-          },
-          {
-            "label": "profitFeeDenominator",
-            "offset": 0,
-            "slot": "322",
-            "type": "t_uint256",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:62"
+            "label": "_decimals",
+            "offset": 20,
+            "slot": "263",
+            "type": "t_uint8",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:62"
           },
           {
             "label": "remoteHub",
             "offset": 0,
-            "slot": "323",
-            "type": "t_contract(IRemoteHub)6366",
-            "contract": "ExchangeMother",
-            "src": "contracts/ExchangeMother.sol:64"
+            "slot": "264",
+            "type": "t_contract(IRemoteHub)8947",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:64"
+          },
+          {
+            "label": "nonRebasingCreditsPerToken",
+            "offset": 0,
+            "slot": "265",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:66"
+          },
+          {
+            "label": "rebaseState",
+            "offset": 0,
+            "slot": "266",
+            "type": "t_mapping(t_address,t_enum(RebaseOptions)6590)",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:67"
+          },
+          {
+            "label": "_nonRebaseOwners",
+            "offset": 0,
+            "slot": "267",
+            "type": "t_struct(AddressSet)4301_storage",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:68"
+          },
+          {
+            "label": "_reentrancyGuardStatus",
+            "offset": 0,
+            "slot": "269",
+            "type": "t_uint256",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:69"
+          },
+          {
+            "label": "paused",
+            "offset": 0,
+            "slot": "270",
+            "type": "t_bool",
+            "contract": "XusdToken",
+            "src": "contracts/XusdToken.sol:70"
           }
         ],
         "types": {
           "t_address": {
             "label": "address",
             "numberOfBytes": "20"
+          },
+          "t_array(t_bytes32)dyn_storage": {
+            "label": "bytes32[]",
+            "numberOfBytes": "32"
           },
           "t_array(t_uint256)49_storage": {
             "label": "uint256[49]",
@@ -3094,25 +3054,57 @@
             "label": "bytes32",
             "numberOfBytes": "32"
           },
-          "t_contract(IERC20)3099": {
-            "label": "contract IERC20",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IPortfolioManager)6255": {
-            "label": "contract IPortfolioManager",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IRemoteHub)6366": {
+          "t_contract(IRemoteHub)8947": {
             "label": "contract IRemoteHub",
             "numberOfBytes": "20"
+          },
+          "t_enum(RebaseOptions)6590": {
+            "label": "enum XusdToken.RebaseOptions",
+            "members": [
+              "OptIn",
+              "OptOut"
+            ],
+            "numberOfBytes": "1"
           },
           "t_mapping(t_address,t_bool)": {
             "label": "mapping(address => bool)",
             "numberOfBytes": "32"
           },
+          "t_mapping(t_address,t_enum(RebaseOptions)6590)": {
+            "label": "mapping(address => enum XusdToken.RebaseOptions)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_address,t_uint256))": {
+            "label": "mapping(address => mapping(address => uint256))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
           "t_mapping(t_bytes32,t_struct(RoleData)34_storage)": {
             "label": "mapping(bytes32 => struct AccessControlUpgradeable.RoleData)",
             "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_uint256)": {
+            "label": "mapping(bytes32 => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(AddressSet)4301_storage": {
+            "label": "struct EnumerableSet.AddressSet",
+            "members": [
+              {
+                "label": "_inner",
+                "type": "t_struct(Set)3986_storage",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "64"
           },
           "t_struct(RoleData)34_storage": {
             "label": "struct AccessControlUpgradeable.RoleData",
@@ -3132,6 +3124,24 @@
             ],
             "numberOfBytes": "64"
           },
+          "t_struct(Set)3986_storage": {
+            "label": "struct EnumerableSet.Set",
+            "members": [
+              {
+                "label": "_values",
+                "type": "t_array(t_bytes32)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_indexes",
+                "type": "t_mapping(t_bytes32,t_uint256)",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
           "t_uint256": {
             "label": "uint256",
             "numberOfBytes": "32"
@@ -3142,11 +3152,7 @@
           }
         },
         "namespaces": {}
-      },
-      "allAddresses": [
-        "0xA262e4cFD025ECd3C33E37CE4D661632fc4a2bf3",
-        "0x129f3e4D309D1Ec2DE02632FB38d79A001b19799"
-      ]
+      }
     }
   }
 }
