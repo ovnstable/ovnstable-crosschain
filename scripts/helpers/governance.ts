@@ -180,9 +180,11 @@ function createTransaction(
 
 async function testProposal(
     proposalItems: ProposalItems
-): Promise<void> {
+): Promise<any> {
 
     // console.log('Count transactions: ' + addresses.length);
+
+    let lol;
 
     await execTimelock(async (timelock: Contract)=>{
 
@@ -194,14 +196,18 @@ async function testProposal(
             let tx = {
                 from: timelock.target,
                 to: address,
-                value: 0,
+                // value: "1000000000000000000",
                 data: abi
             }
 
             // console.log(`Transaction: index: [${i}] address: [${address}]`)
-            await (await timelock.sendTransaction(tx)).wait();
+            lol = await (await timelock.sendTransaction(tx)).wait();
+            // console.log("lol", lol);
+            
         }
     })
+
+    return lol;
 }
 
 async function getProposalState(proposalId: string): Promise<string> {

@@ -314,6 +314,92 @@ async function main() {
     // }
 
 
+    // await hre.run("verify:verify", {
+    //   address: "0x00bBD0B38E9374c6C8D049424d3D25586A3cffa2",
+    //   constructorArguments: ["0x141fa059441E0ca23ce184B6A78bafD2A517DdE8"]
+    // });
+
+
+    // await hre.run("verify:verify", {
+    //   address: "0x361BEb3e0b9f5F6B317D43F20eDC0fd4139b7BEe",
+    //   constructorArguments: ["0x24C40f13E77De2aFf37c280BA06c333531589bf1"]
+    // });
+
+    // return;
+
+    // await hre.run("verify:verify", {
+    //   address: "0xF8f2578037f3F94f70c6921F38873f7E7C0B2D56",
+    //   constructorArguments: ["0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D"]
+    // });
+
+    // return;
+
+    // await hre.run("verify:verify", {
+    //   address: "0x9A597965AeD9aaD4ab8385F9715c63934D30B824",
+    //   constructorArguments: ["0x34B03Cb9086d7D758AC55af71584F81A598759FE"]
+    // });
+
+    // return;
+
+    // await hre.run("verify:verify", {
+    //   address: "0x0674F501c08EA1669D2a768750e25f665Ec3a366",
+    //   constructorArguments: ["0x3206695CaE29952f4b0c22a169725a865bc8Ce0f"]
+    // });
+
+
+    // let sonicImpls = {
+    //   // remoteHub: "0xd9c4B3d7D014A5C37e751D5DF9b209213d04d91c",
+    //   // remoteHubUpgrader: "0xaD4939705B9d1207415A4B2E7818714455fD9137",
+    //   // exchange: "0x536e74CfD9FAABf7B06181fA5CfD863De65D79eA",
+    //   // market: "0xd2F9936CE6c0686F93A6FC2F30D23Ff10CfDCcB8",
+    //   // roleManager: "0x8691117eD0244F340951f3f474FCeec2973EfAc7",
+    //   // xusdToken: "0x60c8A332Fd6d67F80cC4906f31ce9c5043fab992",
+    //   // payoutManager: "0xd9239aB483CdcE215dB4F4c344Ce6ea27E2EF9Cd",
+    //   wrappedXusdToken: "0xdB783CD906BB4eF9DF2Aa43CcCc23c4770D100e0",
+    // }
+
+    // for (const [key, value] of Object.entries(sonicImpls)) {
+      
+    //   let name = "";
+    //   if (key === "payoutManager") {
+    //       name = "contracts/payoutManagers/SonicPayoutManager.sol:SonicPayoutManager";
+    //   }
+
+    //   let constructorArguments = [];
+
+    //   if (key === "remoteHub") {
+    //     constructorArguments = ["0xB4e1Ff7882474BB93042be9AD5E1fA387949B860"];
+    //   } else if (key === "remoteHubUpgrader") {
+    //     constructorArguments = ["0xB4e1Ff7882474BB93042be9AD5E1fA387949B860", "0xd9c4B3d7D014A5C37e751D5DF9b209213d04d91c"];
+    //   }
+
+
+    //   if (name === "") {
+    //     await hre.run("verify:verify", {
+    //         address: value,
+    //         constructorArguments: constructorArguments
+    //     });
+    //   } else {
+    //     await hre.run("verify:verify", {
+    //       address: value,
+    //       constructorArguments: constructorArguments,
+    //       contract: name
+    //     });
+    //   }
+
+    //   console.log("Verified ", key, " ", value);
+    // }
+
+
+    let addr = "0xde43088434d4a23b42c9228c0fc09d24c9af1119";
+
+        await hre.run("verify:verify", {
+            address: addr,
+            constructorArguments: []
+        });
+
+
+
 }
 
 

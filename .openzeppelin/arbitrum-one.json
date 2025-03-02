@@ -321,7 +321,11 @@
           }
         },
         "namespaces": {}
-      }
+      },
+      "allAddresses": [
+        "0xd3957E44267081a3873897AE6e4f67809f8F38B5",
+        "0x00bBD0B38E9374c6C8D049424d3D25586A3cffa2"
+      ]
     },
     "cb1e4fee026fcdf8be45f10a28e202e718d76120a733a44bcb67b265c0449f66": {
       "address": "0x66C5544D09B224fb6B7B21CD494D9049C0f0EC40",

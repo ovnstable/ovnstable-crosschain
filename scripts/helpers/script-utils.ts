@@ -20,14 +20,16 @@ async function getContract(name: string): Promise<any> {
     // console.log("process.env.NET", process.env.NET);
     // console.log("process.env.NETWORK", process.env.NETWORK);
     // console.log("RESET", process.env.RESET);
-    let networkName = (process.env.NETWORK === 'localhost' ? '_' : '') + (process.env.NETWORK === 'localhost' ? process.env.NET : process.env.NETWORK);
+    let networkName = (process.env.NETWORK === 'localhost' ? process.env.NET : process.env.NETWORK) + (process.env.NETWORK === 'localhost' ? '_' : '');
     
     let signer = await initWallet();
-    console.log("networkName in getContract:", networkName);
+    // console.log("networkName in getContract:", networkName);
     
+    // console.log("networkName", path.join(networkName, `${name}.json`));
     const searchPath = fromDir(appRoot.path, path.join(networkName, `${name}.json`));
-    console.log("searchPath", searchPath);
+    // console.log("searchPath", searchPath);
     if (searchPath === undefined) {
+        console.log("searchPath is undefined");
         throw new Error(`Contract file not found for ${name} on ${networkName}`);
     }
     const contractJson = JSON.parse(fs.readFileSync(searchPath, 'utf-8'));
@@ -77,6 +79,19 @@ async function deployImpl(contractName: string, initParams: any) {
             kind: 'uups',
             unsafeAllow: [],
             constructorArgs: [],
+            redeployImplementation: 'always'
+        });
+
+    console.log("Implementation address for", contractName, ":", newImpl);
+}
+
+async function deployImpl2(contractName: string, initParams: any, constructorArgs: any, unsafeAllow: any) {
+    const contractFactory = await ethers.getContractFactory(contractName, initParams);
+
+    let newImpl = await upgrades.deployImplementation(contractFactory, {
+            kind: 'uups',
+            unsafeAllow: unsafeAllow,
+            constructorArgs: constructorArgs,
             redeployImplementation: 'always'
         });
 
@@ -204,6 +219,7 @@ export {
     fromDir,
     initWallet,
     deployImpl,
+    deployImpl2,
     Roles,
     switchNetwork,
     Contracts,

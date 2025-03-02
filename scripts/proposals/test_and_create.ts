@@ -5,7 +5,7 @@ const hre = require("hardhat");
 const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 
-const filename = "03_transfer_usdplus";
+const filename = "04_upgrade_all_rh";
 
 async function main(): Promise<void> {
 

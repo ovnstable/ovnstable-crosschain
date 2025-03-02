@@ -71,16 +71,19 @@ task("node3", 'Starts a JSON-RPC server on top of Hardhat EVM')
     .setAction(async (taskArgs, { ethers }) => {
 		const { run } = require('hardhat');
 
-		await deleteFolderRecursive(`./deployments/_arbitrum`);
-		await deleteFolderRecursive(`./deployments/_optimism`);
-        await deleteFolderRecursive(`./deployments/_ethereum`);
-        await deleteFolderRecursive(`./deployments/_mode`);
+		await deleteFolderRecursive(`./deployments/arbitrum_`);
+		await deleteFolderRecursive(`./deployments/optimism_`);
+        await deleteFolderRecursive(`./deployments/ethereum_`);
+        await deleteFolderRecursive(`./deployments/mode_`);
+        await deleteFolderRecursive(`./deployments/bsc_`);
+        await deleteFolderRecursive(`./deployments/sonic_`);
 
-		await copyFolder('./deployments/arbitrum', `./deployments/_arbitrum`);
-		await copyFolder('./deployments/optimism', `./deployments/_optimism`);
-        await copyFolder('./deployments/ethereum', `./deployments/_ethereum`);
-        await copyFolder('./deployments/mode', `./deployments/_mode`);
-
+		await copyFolder('./deployments/arbitrum', `./deployments/arbitrum_`);
+		await copyFolder('./deployments/optimism', `./deployments/optimism_`);
+        await copyFolder('./deployments/ethereum', `./deployments/ethereum_`);
+        await copyFolder('./deployments/mode', `./deployments/mode_`);
+        await copyFolder('./deployments/bsc', `./deployments/bsc_`);
+        await copyFolder('./deployments/sonic', `./deployments/sonic_`);
 		await run('node', {
 			...taskArgs,
 			network: "hardhat",

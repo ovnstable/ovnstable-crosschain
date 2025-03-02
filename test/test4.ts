@@ -145,7 +145,7 @@ async function transferETH(amount: number, to: string) {
 async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
-    networkName = networkName === "ARBITRUM" ? "_arbitrum" : "_mode";
+    networkName = networkName === "ARBITRUM" ? "arbitrum_" : "mode_";
 
     let proxy;
     try {
@@ -232,7 +232,7 @@ async function initDeploySet(chainType: ChainType) {
     let dev5Signer = await ethers.getSigner(dev5);
     let richSigner = await ethers.getSigner(wxusdRich);
 
-    let networkName = chainType == ChainType.SOURCE ? "_arbitrum" : "_mode";
+    let networkName = chainType == ChainType.SOURCE ? "arbitrum_" : "mode_";
 
     let remoteHub = (await getContract("RemoteHub", networkName)) as RemoteHub;
     let remoteHubUpgrader = (await getContract("RemoteHubUpgrader", networkName)) as RemoteHubUpgrader;

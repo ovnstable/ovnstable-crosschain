@@ -10,19 +10,23 @@ function getEvm2EvmMessage(receipt, iter = 0) {
     const evm2EvmOnRampInterface = new ethers.Interface(EVM2EVMOnRampAbi);
     let currentIter = 0;
 
+    
+
     for (const log of receipt.logs) {
         try {
             const parsedLog = evm2EvmOnRampInterface.parseLog(log);
+            // console.log("parsedLog", parsedLog);
             if (parsedLog?.name == `CCIPSendRequested`) {
                 if (currentIter !== iter) {
                     currentIter++;
                     continue;
                 }
                 const [sourceChainSelector, sender, receiver, sequenceNumber, gasLimit, strict, nonce, feeToken, feeTokenAmount, data, tokenAmountsRaw, sourceTokenDataRaw, messageId] = parsedLog?.args[0];
+                // console.log("sourceTokenDataRaw", sourceTokenDataRaw);
                 const tokenAmounts = tokenAmountsRaw.map(([token, amount]) => ({ token, amount }));
                 const sourceTokenData = sourceTokenDataRaw.map(data => data);
                 const evm2EvmMessage = { sourceChainSelector, sender, receiver, sequenceNumber, gasLimit, strict, nonce, feeToken, feeTokenAmount, data, tokenAmounts, sourceTokenData, messageId };
-                console.log("evm2EvmMessage", evm2EvmMessage);
+                // console.log("evm2EvmMessage", evm2EvmMessage);
                 return evm2EvmMessage;
             }
         } catch (error) {
@@ -51,8 +55,8 @@ async function routeMessage(routerAddress, evm2EvmMessage) {
             await setBalance(self.address, BigInt(100) ** BigInt(18));
             const offchainTokenData = new Array(evm2EvmMessage.tokenAmounts.length).fill("0x");
             const tokenGasOverrides = new Array(evm2EvmMessage.tokenAmounts.length).fill(0);
-            console.log("offchainTokenData", offchainTokenData);
-            console.log("tokenGasOverrides", tokenGasOverrides);
+            // console.log("offchainTokenData", offchainTokenData);
+            // console.log("tokenGasOverrides", tokenGasOverrides);
             await evm2EvmOffRamp.connect(self).executeSingleMessage(evm2EvmMessage, offchainTokenData, tokenGasOverrides);
             return;
         }

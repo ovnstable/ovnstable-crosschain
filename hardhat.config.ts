@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
         accounts: [process.env.PRIVATE_KEY]
       }
     },
-    // _arbitrum: {
+    // arbitrum_: {
     //   url: process.env.ARBITRUM_RPC,
     //   forking: {
     //     url: process.env.ARBITRUM_RPC,
@@ -36,7 +36,7 @@ const config: HardhatUserConfig = {
     //     accounts: [process.env.PRIVATE_KEY]
     //   }
     // },
-    // _optimism: {
+    // optimism_: {
     //   url: process.env.OPTIMISM_RPC,
     //   forking: {
     //     url: process.env.OPTIMISM_RPC,
@@ -66,6 +66,10 @@ const config: HardhatUserConfig = {
     },
     mode: {
       url: process.env.MODE_RPC,
+      accounts: [process.env.PRIVATE_KEY]
+    },
+    base: {
+      url: process.env.BASE_RPC,
       accounts: [process.env.PRIVATE_KEY]
     }
   },

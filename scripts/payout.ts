@@ -20,7 +20,7 @@ async function main() {
     let signer = await initWallet();
 
     let exchange = await getContract('ExchangeMother');
-    await exchange.connect(signer).payout(false, getEmptyOdosData(), { value: "10000000" });
+    await exchange.connect(signer).payout(false, getEmptyOdosData(), { value: "1000000000" });
     console.log('Exchange.payout done');
 }
 
