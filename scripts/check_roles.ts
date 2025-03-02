@@ -19,6 +19,8 @@ async function main(): Promise<void> {
 
     let dev5 = "0x086dFe298907DFf27BD593BD85208D57e0155c94";
     let timelock = "0xa44dF8A8581C2cb536234E6640112fFf932ED2c4";
+    let rh = remoteHub.target as string;
+    let rhu = remoteHubUpgrader.target as string;
 
     if (isArbitrum) {
         let a1 = await exchange.hasRole(Roles.DEFAULT_ADMIN_ROLE, timelock);
@@ -142,7 +144,6 @@ async function main(): Promise<void> {
         a9 = await roleManager.hasRole(Roles.UPGRADER_ROLE, remoteHubUpgrader.target);
 
         console.log("all6", a1 == false, a2 == false, a3, a4 == false, a5 == false, a6 == false, a8 == false, a9 == false);
-
     }
 }
 

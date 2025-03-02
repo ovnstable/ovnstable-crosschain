@@ -18,6 +18,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../.env' });
 import type { ContractFactory, Contract } from 'ethers';
 import { fromDir, Roles, ThreeContracts, Contracts, ContractTypes, ContractFactoryTypes, MultichainCallItem, RemoteHub, RemoteHubUpgrader, ExchangeChild, ExchangeMother, Market, PortfolioManager, RoleManager, WrappedXusdToken, XusdToken, PayoutManager } from '../scripts/helpers/script-utils';
+
 import { getProposalItems } from '../scripts/proposals/scripts/arbitrum/04_upgrade_all_rh';
 
 // instalation: npm install (not yarn install)
@@ -163,6 +164,7 @@ async function transferETH(amount: number, to: string) {
 async function deployOrUpgrade(contractName: string, initParams: any, contrParams: any, unsafeAllow: any, networkName: string, imper: string) {
 
     const contractFactory = await getContractFactory(contractName, initParams);
+
     networkName = networkName === "ARBITRUM" ? "arbitrum_" : currentDestChain;
 
     let proxy;
@@ -260,6 +262,7 @@ async function initDeploySet(chainType: ChainType) {
     let portfolioManager = chainType == ChainType.SOURCE ? (await getContract("PortfolioManager", networkName)) as PortfolioManager : undefined;
     let xusdToken = (await getContract("XusdToken", networkName)) as XusdToken;
     let wrappedXusdToken = (await getContract("WrappedXusdToken", networkName)) as WrappedXusdToken;
+
     let payoutManager = null; //(await getContract(chainType == ChainType.SOURCE ? "ArbitrumPayoutManager" : "OptimismPayoutManager", networkName)) as PayoutManager;    
 
     if (chainType == ChainType.SOURCE) {
@@ -514,8 +517,10 @@ async function upgradeTest(contractName: string, type: string): Promise<boolean>
             receiver = D.remoteHub.target as string;
             executor = D.market.target as string;
         }
+
         let multichainCallItems = await makeUpgradeToData(newImpl, receiver, executor, ChainType.DESTINATION);
         await applyMessage(ChainType.DESTINATION, multichainCallItems);
+
         let impl = await getImplementationAddress(ethers.provider, executor);
         if (impl !== newImpl) {
             throw new Error("Implementation mismatch");
@@ -603,7 +608,6 @@ async function transferTest(_from: ChainType, _to: ChainType): Promise<boolean> 
 
 async function main() {
 
-
     let ch = "arbitrum";
 
     await initAllAddresses();
@@ -678,6 +682,7 @@ async function main() {
     // }
     
     // return true;
+
     // expect(await transferTest(ChainType.DESTINATION, ChainType.SOURCE)).to.equal(true);
 }
 
