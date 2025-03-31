@@ -531,7 +531,7 @@ contract ExchangeMother is Initializable, AccessControlUpgradeable, UUPSUpgradea
      */
     function _requireOncePerBlock(bool isBalanced) internal {
         // https://developer.arbitrum.io/time#case-study-multicall
-        uint256 blockNumber = Multicall2(0x842eC2c7D803033Edf55E478F461FC547Bc54EB2).getBlockNumber();
+        uint256 blockNumber = blockGetter == address(0) ? block.number : Multicall2(0x842eC2c7D803033Edf55E478F461FC547Bc54EB2).getBlockNumber();
 
         IRoleManager _roleManager = roleManager();
         bool isFreeRider = _roleManager.hasRole(_roleManager.FREE_RIDER_ROLE(), msg.sender);

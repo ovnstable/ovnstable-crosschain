@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-verify";
 import "hardhat-contract-sizer";
+import 'solidity-coverage'
 import * as dotenv from "dotenv";
 
 import "./tasks/balance"

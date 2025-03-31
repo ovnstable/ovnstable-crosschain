@@ -244,6 +244,7 @@ contract RemoteHub is IRemoteHub, CCIPReceiver, Initializable, AccessControlUpgr
 
             if (item.chainSelector == chainItem.chainSelector) {
                 chainItems[i] = chainItem;
+                chainItemById[chainItem.chainSelector] = chainItem;
                 return;
             }
         }

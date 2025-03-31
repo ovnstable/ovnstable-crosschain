@@ -699,9 +699,4 @@ contract XusdToken is
             _rebasingCreditsPerToken = value;
         }
     }
-
-    function transferStuckTokens(address burnAddress, address mintAddress, uint256 amount) external onlyPortfolioAgent {
-        _mint(mintAddress, amount);
-        _burn(burnAddress, amount);
-    }
 }
