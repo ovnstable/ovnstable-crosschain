@@ -6,9 +6,9 @@ import { ChainItem } from "../typechain-types/contracts/RemoteHub";
 
 describe("RemoteHub", function () {
     // Constants
-    const CHAIN_SELECTOR = 1;
-    const SOURCE_CHAIN_SELECTOR = 2;
-    const DESTINATION_CHAIN_SELECTOR = 3;
+    const CHAIN_SELECTOR = "4949039107694359620";
+    const SOURCE_CHAIN_SELECTOR = "4949039107694359620";
+    const DESTINATION_CHAIN_SELECTOR = "3734403246176062136";
 
     async function deployFixture() {
         const [owner, portfolioAgent, upgrader, exchanger, user] = await ethers.getSigners();
@@ -119,7 +119,7 @@ describe("RemoteHub", function () {
             await remoteHub.connect(upgrader).removeChainItem(CHAIN_SELECTOR);
             
             const removedItem = await remoteHub.chainItemById(CHAIN_SELECTOR);
-            expect(removedItem.chainSelector).to.equal(1);
+            expect(removedItem.chainSelector).to.equal("4949039107694359620");
             expect(removedItem.xusd).to.equal(mockXusd.target);
         });
     });
@@ -251,23 +251,84 @@ describe("RemoteHub", function () {
     describe("Multi-chain Operations", function () {
         beforeEach(async function () {
             const { remoteHub, owner } = await loadFixture(deployFixture);
-            await remoteHub.connect(owner).allowlistDestinationChain(DESTINATION_CHAIN_SELECTOR, true);
-            await remoteHub.connect(owner).allowlistSourceChain(SOURCE_CHAIN_SELECTOR, true);
         });
 
         it("should execute multichain call", async function () {
             const { remoteHub, upgrader, user, owner } = await loadFixture(deployFixture);
-            const destinations = [DESTINATION_CHAIN_SELECTOR];
-            const receivers = [ethers.Wallet.createRandom().address];
-            const data = "0x";
-            const dataArray = [data];
+
+            await remoteHub.connect(owner).allowlistDestinationChain(DESTINATION_CHAIN_SELECTOR, true);
+            await remoteHub.connect(owner).allowlistSourceChain(SOURCE_CHAIN_SELECTOR, true);
+
+            function encodeWithSignature(signature: string, params: any[]): string {
+                const funcName = signature.split('(')[0];
+                const ifaceERC20 = new ethers.Interface(["function " + signature])
+                let tokenApproveCall = ifaceERC20.encodeFunctionData(funcName, params)
+                return tokenApproveCall;
+            }
+
+            const signature = 'setToken(address)';
+            const params1 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da1'];
+            const params2 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da2'];
+            const encoded1 = encodeWithSignature(signature, params1);
+            const encoded2 = encodeWithSignature(signature, params2);
+        
+            let multichainCallItems = [{
+                chainSelector: DESTINATION_CHAIN_SELECTOR,
+                receiver: ethers.Wallet.createRandom().address,
+                token: "0x0000000000000000000000000000000000000000",
+                amount: 0,
+                batchData: [{
+                    executor: ethers.Wallet.createRandom().address,
+                    data: encoded1
+                }]
+            }];
+
+            console.log(multichainCallItems, encoded1);
+            console.log(multichainCallItems[0].batchData[0].executor);
+            console.log(remoteHub.target);
+            console.log(owner.address);
             
-            await expect(
-                remoteHub.connect(owner).multichainCall([
-                    
-                ])
-            ).to.not.emit(remoteHub, "MessageSent");
+            await remoteHub.connect(owner).multichainCall(multichainCallItems, {value: ethers.parseEther("0.001")});
         });
+
+        it("should execute multichain call locally", async function () {
+            const { remoteHub, upgrader, user, owner } = await loadFixture(deployFixture);
+
+            await remoteHub.connect(owner).allowlistDestinationChain(DESTINATION_CHAIN_SELECTOR, true);
+            await remoteHub.connect(owner).allowlistSourceChain(SOURCE_CHAIN_SELECTOR, true);
+
+            function encodeWithSignature(signature: string, params: any[]): string {
+                const funcName = signature.split('(')[0];
+                const ifaceERC20 = new ethers.Interface(["function " + signature])
+                let tokenApproveCall = ifaceERC20.encodeFunctionData(funcName, params)
+                return tokenApproveCall;
+            }
+
+            const signature = 'setToken(address)';
+            const params1 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da1'];
+            const params2 = ['0xda10009cbd5d07dd0cecc66161fc93d7c9000da2'];
+            const encoded1 = encodeWithSignature(signature, params1);
+            const encoded2 = encodeWithSignature(signature, params2);
+        
+            let multichainCallItems = [{
+                chainSelector: SOURCE_CHAIN_SELECTOR,
+                receiver: remoteHub.target,
+                token: "0x0000000000000000000000000000000000000000",
+                amount: 0,
+                batchData: [{
+                    executor: ethers.Wallet.createRandom().address,
+                    data: encoded1
+                }]
+            }];
+
+            console.log(multichainCallItems, encoded1);
+            console.log(multichainCallItems[0].batchData[0].executor);
+            console.log(remoteHub.target);
+            console.log(owner.address);
+            
+            await remoteHub.connect(owner).multichainCall(multichainCallItems, {value: ethers.parseEther("0.001")});
+        });
+
 
         it("should execute multi payout", async function () {
             const { remoteHub, exchanger, mockXusd } = await loadFixture(deployFixture);
@@ -277,7 +338,7 @@ describe("RemoteHub", function () {
 
             await expect(
                 remoteHub.connect(exchanger).execMultiPayout(100)                
-            ).to.be.revertedWith("supported only on motherchain");
+            ).to.not.be.reverted;
         });
 
     });

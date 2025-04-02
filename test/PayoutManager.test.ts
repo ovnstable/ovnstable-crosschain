@@ -20,6 +20,8 @@ describe("PayoutManager", function () {
     await roleManager.grantRole(roleManager.UNIT_ROLE(), user.address);
     await roleManager.grantRole(roleManager.EXCHANGER(), owner.address);
 
+    const asset = await MockToken.deploy("Mock USDC", "USDC");
+
 
     // Deploy mock RemoteHub
     const MockRemoteHub = await ethers.getContractFactory("MockRemoteHub");
@@ -61,7 +63,8 @@ describe("PayoutManager", function () {
       owner,
       user,
       rewardWallet,
-      roleManager
+      roleManager,
+      asset
     };
   }
 
@@ -247,7 +250,7 @@ describe("PayoutManager", function () {
     });
 
     it("Should not process payouts when disabled", async function () {
-      const { payoutManager } = await loadFixture(deployPayoutManagerFixture);
+      const { payoutManager, xusdToken, user } = await loadFixture(deployPayoutManagerFixture);
       await payoutManager.setDisabled(true);
       
       // Note: Mock the EXCHANGER role permission first
@@ -540,7 +543,7 @@ describe("PayoutManager", function () {
   describe("Additional PayoutManager Tests", function () {
     describe("Edge Cases and Error Conditions", function () {
       it("Should revert when trying to set zero address as reward wallet", async function () {
-        const { payoutManager } = await loadFixture(deployPayoutManagerFixture);
+        const { payoutManager, xusdToken, user } = await loadFixture(deployPayoutManagerFixture);
         
         await expect(payoutManager.setRewardWallet(ethers.ZeroAddress))
           .to.be.revertedWith("Zero address not allowed");
@@ -554,10 +557,50 @@ describe("PayoutManager", function () {
       });
 
       it("Should handle empty nonRebaseInfo array in payoutDone", async function () {
-        const { payoutManager, xusdToken, owner } = await loadFixture(deployPayoutManagerFixture);
+        const { payoutManager, xusdToken, user, asset } = await loadFixture(deployPayoutManagerFixture);
         
-        await expect(payoutManager.payoutDone(xusdToken.target, []))
-          .to.not.be.reverted;
+
+        const items = [
+          {
+            pool: user.address,
+            token: asset.target,
+            poolName: "Pool 1",
+            bribe: ethers.ZeroAddress,
+            operation: 0,
+            to: user.address,
+            dexName: "Dex1",
+            feePercent: 0,
+            feeReceiver: ethers.ZeroAddress,
+            __gap: Array(10).fill(0)
+          },
+          {
+            pool: ethers.Wallet.createRandom().address,
+            token: asset.target,
+            poolName: "Pool 2",
+            bribe: ethers.ZeroAddress,
+            operation: 3,
+            to: user.address,
+            dexName: "Dex2",
+            feePercent: 10,
+            feeReceiver: ethers.ZeroAddress,
+            __gap: Array(10).fill(0)
+          }
+        ];
+  
+        await payoutManager.addItems(items);
+
+        const nonRebaseInfo = [
+          {
+            pool: user.address,
+            amount: ethers.parseUnits("10", 6),
+            __gap: Array(10).fill(0)
+          }
+        ];
+
+        await asset.mint(payoutManager.target, ethers.parseUnits("1000", 6));
+
+        await payoutManager.payoutDone(asset.target, nonRebaseInfo);
+          
       });
     });
 

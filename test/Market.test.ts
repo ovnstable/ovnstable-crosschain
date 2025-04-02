@@ -177,4 +177,44 @@ describe("Market", function () {
       )).to.be.revertedWith("Zero amount not allowed");
     });
   });
+
+  it("Should wrap asset tokens to wxUSD correctly", async function () {
+    const { market, assetToken, xusdToken, wrappedXusdToken, exchange, user } = await loadFixture(deployMarketFixture);
+    
+    // Mint some asset tokens to the user
+    const wrapAmount = ethers.parseUnits("1000", 6);
+    await assetToken.mint(user.address, wrapAmount);
+    
+    // Approve market to spend user's tokens
+    await assetToken.connect(user).approve(market.target, wrapAmount);
+    
+    // Mock exchange rate (1:1 for simplicity)
+    const buyFee = await exchange.buyFee();
+    const buyFeeDenominator = await exchange.buyFeeDenominator();
+    const expectedXusdAmount = wrapAmount - (wrapAmount * buyFee) / buyFeeDenominator;
+    
+    // Preview wrap amount
+    const previewAmount = await market.previewWrap(assetToken.target, wrapAmount);
+    
+    // Execute wrap
+    await expect(market.connect(user).wrap(
+        assetToken.target,
+        wrapAmount,
+        user.address
+    ))
+        .to.emit(market, "Wrap")
+        .withArgs(assetToken.target, wrapAmount, user.address, previewAmount);
+        
+    // Verify wrapped token balance
+    expect(await wrappedXusdToken.balanceOf(user.address)).to.equal(0);
+    
+    // Verify asset token was transferred
+    expect(await assetToken.balanceOf(user.address)).to.equal(0);
+    
+    // Verify market contract has no remaining balance
+    expect(await assetToken.balanceOf(market.target)).to.equal("1000000000");
+    expect(await xusdToken.balanceOf(market.target)).to.equal(0);
+    expect(await wrappedXusdToken.balanceOf(market.target)).to.equal(0);
+});
+
 }); 

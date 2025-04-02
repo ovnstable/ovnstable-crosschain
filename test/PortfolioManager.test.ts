@@ -119,15 +119,16 @@ describe("PortfolioManager", function () {
 
         describe("Remove Strategy", function () {
             it("Should allow portfolio agent to remove strategy", async function () {
-                const { portfolioManager, portfolioAgent, strategy1 } = await loadFixture(deployPortfolioManagerFixture);
+                const { portfolioManager, portfolioAgent, strategy1, strategy2 } = await loadFixture(deployPortfolioManagerFixture);
                 
                 await portfolioManager.connect(portfolioAgent).addStrategy(strategy1.target);
+                await portfolioManager.connect(portfolioAgent).addStrategy(strategy2.target);
                 
                 await expect(portfolioManager.connect(portfolioAgent).removeStrategy(strategy1.target))
                 .to.not.be.reverted;
 
                 const weights = await portfolioManager.getAllStrategyWeights();
-                expect(weights.length).to.equal(0);
+                expect(weights.length).to.equal(1);
             });
         });
     });
@@ -149,6 +150,8 @@ describe("PortfolioManager", function () {
             await portfolioManager.connect(exchanger).deposit();
 
             await expect(portfolioManager.connect(portfolioAgent).balance())
+                .to.not.be.reverted;
+            await expect(portfolioManager.connect(exchanger).claimAndBalance())
                 .to.not.be.reverted;
         });
     });
@@ -191,11 +194,13 @@ describe("PortfolioManager", function () {
             
             await portfolioManager.connect(portfolioAgent).addStrategy(strategy1.target);
             await portfolioManager.connect(portfolioAgent).addStrategy(strategy2.target);
+            await portfolioManager.connect(portfolioAgent).setNavSlippageBp(4);
 
             await strategy1.setNetAssetValue(ethers.parseUnits("500", 6));
             await strategy2.setNetAssetValue(ethers.parseUnits("500", 6));
 
             expect(await portfolioManager.totalNetAssets()).to.equal(ethers.parseUnits("1000", 6));
+            expect(await portfolioManager.totalLiquidationAssets()).to.equal(ethers.parseUnits("0", 6));
         });
     });
 
@@ -212,6 +217,54 @@ describe("PortfolioManager", function () {
             
             await expect(portfolioManager.connect(user).withdraw(100))
                 .to.be.revertedWith("Caller doesn't have EXCHANGER role");
+        });
+    });
+
+    describe("Strategy Weight Management", function () {
+        it("Should set strategy weights correctly", async function () {
+            const { portfolioManager, portfolioAgent, strategy1, strategy2 } = await loadFixture(deployPortfolioManagerFixture);
+            
+            // Add strategies first
+            await portfolioManager.connect(portfolioAgent).addStrategy(strategy1.target);
+            await portfolioManager.connect(portfolioAgent).addStrategy(strategy2.target);
+    
+            const weights = [
+                {
+                    strategy: strategy1.target,
+                    minWeight: 40000,    // 40%
+                    targetWeight: 50000, // 50%
+                    maxWeight: 60000,    // 60%
+                    riskFactor: 8000,    // 80%
+                    enabled: true,
+                    enabledReward: true
+                },
+                {
+                    strategy: strategy2.target,
+                    minWeight: 40000,    // 40%
+                    targetWeight: 50000, // 50%
+                    maxWeight: 60000,    // 60%
+                    riskFactor: 7000,    // 70%
+                    enabled: true,
+                    enabledReward: true
+                }
+            ];
+    
+            await expect(portfolioManager.connect(portfolioAgent).setStrategyWeights(weights))
+                .to.emit(portfolioManager, "StrategyWeightUpdated")
+                .to.emit(portfolioManager, "TotalRiskFactorUpdated");
+    
+            const updatedWeights = await portfolioManager.getAllStrategyWeights();
+            expect(updatedWeights.length).to.equal(2);
+            expect(updatedWeights[0].targetWeight).to.equal(50000);
+            expect(updatedWeights[1].targetWeight).to.equal(50000);
+            const strategyAssets = await portfolioManager.strategyAssets();
+            expect(strategyAssets.length).to.equal(2);
+            expect(strategyAssets[0].netAssetValue).to.equal(ethers.parseUnits("0", 6));
+            expect(strategyAssets[1].netAssetValue).to.equal(ethers.parseUnits("0", 6));
+    
+            // Check total risk factor calculation
+            // (80% * 50000 / 100) / 1000 + (70% * 50000 / 100) / 1000 = 7500
+            expect(await portfolioManager.getTotalRiskFactor()).to.equal(7500);
         });
     });
 }); 
